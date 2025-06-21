@@ -1,0 +1,21 @@
+utterance,intent,menu_item,quantity,special_instructions
+Ek pizza chahiye,order_item,pizza,1,
+Do samose dena,order_item,samose,2,
+Ek coffee bina sugar,order_item,coffee,1,bina sugar
+Chai bhej do,order_item,chai,1,
+Ek plate masala dosa,order_item,masala dosa,1,
+3 vada pav de do,order_item,vada pav,3,
+Ek cold coffee le aao,order_item,cold coffee,1,
+2 aloo tikki chahiye,order_item,aloo tikki,2,
+Ek sandwich jaldi lao,order_item,sandwich,1,jaldi
+1 plate idli sambar dena,order_item,idli sambar,1,
+4 gulab jamun do,order_item,gulab jamun,4,
+Ek lemon soda bina ice,order_item,lemon soda,1,bina ice
+Do vada bina chutney,order_item,vada,2,bina chutney
+Ek plate paneer tikka,order_item,paneer tikka,1,
+2 plate biryani le aao,order_item,biryani,2,
+Ek lemonade jaldi chahiye,order_item,lemonade,1,jaldi
+3 cold coffee bina cream,order_item,cold coffee,3,bina cream
+Ek samosa teekha chahiye,order_item,samosa,1,teekha
+2 plate chole bhature dena,order_item,chole bhature,2,
+Ek pizza extra cheese ke saath,order_item,pizza,1,extra cheese
