@@ -8,6 +8,7 @@ import menuRoutes from "./routes/menuItem.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import cartRoutes from "./routes/cart.js";
 import aiOrderRoute from './routes/aiOrderRoute.js';
+import serverless from 'serverless-http';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/cart", cartRoutes);
 app.use('/api', aiOrderRoute); // Add this
 
+export const handler = serverless(app);
 
 const uri =
   "mongodb+srv://devviveklodhi:KZNTDD8ayWlYW2Mv@ai-restraunt-app.n33cgjv.mongodb.net/?retryWrites=true&w=majority&appName=ai-restraunt-app";
