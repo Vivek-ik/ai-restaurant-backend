@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import MenuItem from "../models/MenuItem.js";
-import Category from "../models/category.js";
+import Category from "../models/Category.js";
 // import Category from "../models/Category.js";
 // import { MenuItem } from "../models/MenuItem";
 // import { Category } from "../models/Category";
