@@ -21,6 +21,7 @@ const MenuItemSchema = new mongoose.Schema(
     image: String,
     available: Boolean,
     customizableOptions: [String],
+    ingredients: [String],  
     allergens: [String],
   },
   { timestamps: true }

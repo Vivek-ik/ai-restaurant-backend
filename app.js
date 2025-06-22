@@ -1,4 +1,3 @@
-// app.js
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -7,8 +6,8 @@ import orderRoutes from "./routes/orderRoutes.js";
 import menuRoutes from "./routes/menuItem.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import cartRoutes from "./routes/cart.js";
-import aiOrderRoute from './routes/aiOrderRoute.js';
-import serverless from 'serverless-http';
+import aiOrderRoute from "./routes/aiOrderRoute.js";
+import serverless from "serverless-http";
 
 dotenv.config();
 
@@ -21,19 +20,22 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/menu-items", menuRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/cart", cartRoutes);
-app.use('/api', aiOrderRoute); // Add this
+app.use("/api", aiOrderRoute);
 
-export const handler = serverless(app);
+// Database connect
+let isConnected = false;
+const connectToDatabase = async () => {
+  if (isConnected) return;
+  const uri = process.env.MONGO_URI || "YOUR_FALLBACK_URI";
+  await mongoose.connect(uri);
+  isConnected = true;
+  console.log("✅ MongoDB connected");
+};
 
-const uri =
-  "mongodb+srv://devviveklodhi:KZNTDD8ayWlYW2Mv@ai-restraunt-app.n33cgjv.mongodb.net/?retryWrites=true&w=majority&appName=ai-restraunt-app";
+// Wrap serverless function
+const handler = serverless(async (req, res, next) => {
+  await connectToDatabase();
+  return app(req, res, next);
+});
 
-const PORT = process.env.PORT || 5000;
-
-mongoose
-  .connect(process.env.MONGO_URI || uri)
-  .then(() => {
-    console.log("MongoDB connected");
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => console.error(err));
+export { handler };

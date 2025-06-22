@@ -9,36 +9,78 @@ import MenuItem from "../models/MenuItem.js";
 
 const router = express.Router();
 
+
 router.post("/ai-order", async (req, res) => {
   const { message, lang = "en", tableId } = req.body;
-  console.log("message, lang, tableNumber", message, lang, tableId);
+  console.log("➡️ Received request:", { message, lang, tableId });
 
-  const lowerMsg = message.toLowerCase();
+  if (!message) {
+    console.error("❌ Missing message in request body");
+    return res.status(400).json({ message: "Message is required." });
+  }
 
   try {
-    // 1. Detect intent and entities (like items, quantity, instructions)
-    const { intent, entities } = await detectIntentAndEntities(message, lang);
-    // const aiReply = await handleChatQuery(message, lang, intent, entities);
+    console.log("⚙️ Calling handleChatQuery...");
+    const { intent, items, ingredient, category, reply, specialInstructions } = await handleChatQuery(message, lang);
+    console.log("✅ handleChatQuery returned:", { intent, items, ingredient, category, reply });
 
-    if (!message) {
-      return res.status(400).json({ message: "Message is required." });
+    // Ingredient Query
+    if (intent === "ingredient_query") {
+      console.log(`🔎 Checking ingredient: ${ingredient}`);
+      const itemsWithIngredient = await MenuItem.find({ ingredients: { $in: [ingredient.toLowerCase()] } });
+      console.log(`🔍 Found ${itemsWithIngredient.length} items containing "${ingredient}"`);
+
+      if (itemsWithIngredient.length > 0) {
+        return res.json({
+          reply: `Yes, these items contain ${ingredient}: ${itemsWithIngredient.map(i => i.itemName.en).join(", ")}`,
+          intent,
+          items: [],
+        });
+      } else {
+        return res.json({
+          reply: `No menu items contain ${ingredient}.`,
+          intent,
+          items: [],
+        });
+      }
     }
 
-    const aiReply = await handleChatQuery(message, lang, intent, entities);
-    console.log("AI Reply:", aiReply);
+    // Menu Browsing
+    if (intent === "menu_browsing") {
+      console.log(`📖 Browsing menu for category: ${category || "ALL"}`);
+      let menuItems = [];
 
+      if (category) {
+        menuItems = await MenuItem.find({ category: { $regex: category, $options: "i" } });
+      } else {
+        menuItems = await MenuItem.find();
+      }
+
+      console.log(`📄 Found ${menuItems.length} items`);
+      return res.json({
+        reply: `Here are the available items: ${menuItems.map(i => i.itemName.en).join(", ")}`,
+        intent,
+        items: [],
+      });
+    }
+
+    // Normal Order Flow
+    console.log("🛒 Processing order items...");
     const enrichedItems = [];
-    for (const item of entities.items || []) {
+
+    for (const item of items || []) {
       const searchName = item.name.trim().toLowerCase();
+      console.log(`🔎 Searching for menu item: "${searchName}"`);
+
       const menuItem = await MenuItem.findOne({
         $or: [
           { "itemName.en": { $regex: searchName, $options: "i" } },
           { "itemName.hi": { $regex: searchName, $options: "i" } },
-          ],
+        ],
       });
-      console.log("menuItem", menuItem);
 
       if (menuItem) {
+        console.log(`✅ Found menu item: ${menuItem.itemName.en}`);
         enrichedItems.push({
           id: menuItem._id,
           name: menuItem.itemName,
@@ -47,28 +89,24 @@ router.post("/ai-order", async (req, res) => {
           specialInstructions: item.specialInstructions || "",
         });
       } else {
-        console.warn(`Menu item not found for: ${item.name}`);
+        console.warn(`⚠️ Menu item not found for: ${item.name}`);
         enrichedItems.push(item);
       }
     }
 
-    console.log("enrichedItems", enrichedItems);
+    console.log("📝 Final enrichedItems:", enrichedItems);
 
-    // add customization from menu  so user can see what they ordered in detail
     res.json({
-      reply: aiReply,
+      reply: reply || "Order processed.",
       intent,
-      items: enrichedItems || [],
-      enrichedItems,
+      items: enrichedItems,
       tableId: tableId || "",
-      specialInstructions: entities?.specialInstructions || "",
+      specialInstructions: specialInstructions || "",
     });
-  } catch {
-    (error) => {
-      console.error("AI Order Error:", error.message);
-      res.status(500).json({ message: "Internal Server Error from AI" });
-    };
+
+  } catch (error) {
+    console.error("🔥 AI Order Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 export default router;
