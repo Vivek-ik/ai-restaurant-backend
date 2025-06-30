@@ -3,13 +3,10 @@ import Cart from "../models/Cart.js";
 const router = express.Router();
 
 //// Add or Update item in cart
-import MenuItem from '../models/MenuItem.js';
+import MenuItem from "../models/MenuItem.js";
 
 router.post("/add", async (req, res) => {
   const { tableId, menuItemId, itemName, quantity, customizations } = req.body;
-
-  console.log("Received request to add/update cart");
-  console.log("Request Body:", req.body);
 
   try {
     let finalMenuItemId = menuItemId;
@@ -18,28 +15,36 @@ router.post("/add", async (req, res) => {
     if (!menuItemId && itemName) {
       const menuItem = await MenuItem.findOne({
         $or: [
-          { "itemName.en": { $regex: new RegExp(`^${itemName}$`, 'i') } },
-          { "itemName.hi": { $regex: new RegExp(`^${itemName}$`, 'i') } }
-        ]
+          { "itemName.en": { $regex: new RegExp(`^${itemName}$`, "i") } },
+          { "itemName.hi": { $regex: new RegExp(`^${itemName}$`, "i") } },
+        ],
       });
 
       if (!menuItem) {
-        return res.status(404).json({ message: "Menu item not found with provided name." });
+        return res
+          .status(404)
+          .json({ message: "Menu item not found with provided name." });
       }
 
       finalMenuItemId = menuItem._id.toString();
-      console.log(`Resolved itemName '${itemName}' to menuItemId: ${finalMenuItemId}`);
+      console.log(
+        `Resolved itemName '${itemName}' to menuItemId: ${finalMenuItemId}`
+      );
     }
 
     if (!finalMenuItemId) {
-      return res.status(400).json({ message: "Either menuItemId or valid itemName is required." });
+      return res
+        .status(400)
+        .json({ message: "Either menuItemId or valid itemName is required." });
     }
 
     // Populate menuItem fully to allow name-based matching
-    let cart = await Cart.findOne({ tableId }).populate('items.menuItem');
+    let cart = await Cart.findOne({ tableId }).populate("items.menuItem");
 
     if (!cart) {
-      console.log(`No existing cart found for tableId: ${tableId}. Creating new cart.`);
+      console.log(
+        `No existing cart found for tableId: ${tableId}. Creating new cart.`
+      );
       cart = new Cart({ tableId, items: [] });
     } else {
       console.log(`Existing cart found for tableId: ${tableId}.`);
@@ -62,7 +67,9 @@ router.post("/add", async (req, res) => {
         existingItem.customizations = customizations;
       }
     } else {
-      console.log(`Adding new item to cart with menuItemId: ${finalMenuItemId}`);
+      console.log(
+        `Adding new item to cart with menuItemId: ${finalMenuItemId}`
+      );
       cart.items.push({
         menuItem: finalMenuItemId,
         quantity,
@@ -73,21 +80,23 @@ router.post("/add", async (req, res) => {
     await cart.save();
     console.log("Cart successfully updated:", cart);
     res.status(200).json({ message: "Cart updated", cart });
-
   } catch (err) {
     console.error("Failed to update cart:", err);
     res.status(500).json({ message: "Failed to update cart", error: err });
   }
 });
 
-
-
 // Get cart for user
 router.get("/:tableId", async (req, res) => {
   try {
-    const cart = await Cart.findOne({ tableId: req.params.tableId }).populate(
+    console.log("Fetching cart for tableId:", req.params.tableId);
+
+    let cart = await Cart.findOne({ tableId: req.params.tableId }).populate(
       "items.menuItem"
     );
+
+    console.log("cart", cart);
+
     res.status(200).json(cart || { tableId: req.params.tableId, items: [] });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch cart", error: err });
@@ -105,6 +114,7 @@ router.post("/remove-cart-item", async (req, res) => {
 
   try {
     const cart = await Cart.findOne({ tableId });
+    console.log("cartcartcart", cart);
 
     if (!cart) {
       return res.status(404).json({ error: "Order not found" });

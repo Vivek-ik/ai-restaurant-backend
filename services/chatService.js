@@ -39,16 +39,23 @@ ${menuText}
 ${clarificationPrompt}
 
 Your tasks:
-- Understand user intent
-- If user asks ingredient query, check if the ingredient exists in menu item ingredients.
-- If user asks to browse the menu, list available items.
-- For ordering, extract item names, quantity, and special instructions.
+- Understand user intent.
+- If the user asks about a category (like South Indian, dessert, starters), filter the menu by that.
+- If the user gives customizations like "less spicy", "without onion", "extra cheese", extract them as special instructions or customizations.
+- For ingredient queries, check if the ingredient exists in any menu items.
+- For ordering, extract item names, quantity, and customizations.
+- Include special instructions like “less spicy”, “without onion”, “extra cheese” for each item **under item.specialInstructions** when mentioned.
+
+Example:
+User: I want 2 masala dosa less spicy and 1 paneer tikka without onion.
+
+
 - Respond in JSON format as:
 {
   "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing",
-  "items": [{ "name": "Item Name", "quantity": 2 }],
-  "ingredient": "onions",
-  "category": "pizza",
+  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy"  }],
+  "ingredient": "onion",
+  "category": "Main Course", "South Indian", "Dessert", "Beverages", "Appetizers",
   "reply": "Your response to the user."
 }
 `;

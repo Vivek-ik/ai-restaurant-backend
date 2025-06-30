@@ -9,30 +9,33 @@ import MenuItem from "../models/MenuItem.js";
 
 const router = express.Router();
 
-
 router.post("/ai-order", async (req, res) => {
   const { message, lang = "en", tableId } = req.body;
   console.log("➡️ Received request:", { message, lang, tableId });
 
   if (!message) {
-    console.error("❌ Missing message in request body");
     return res.status(400).json({ message: "Message is required." });
   }
 
   try {
-    console.log("⚙️ Calling handleChatQuery...");
-    const { intent, items, ingredient, category, reply, specialInstructions } = await handleChatQuery(message, lang);
-    console.log("✅ handleChatQuery returned:", { intent, items, ingredient, category, reply });
+    const { intent, items, ingredient, category, reply, specialInstructions } =
+      await handleChatQuery(message, lang);
 
     // Ingredient Query
     if (intent === "ingredient_query") {
       console.log(`🔎 Checking ingredient: ${ingredient}`);
-      const itemsWithIngredient = await MenuItem.find({ ingredients: { $in: [ingredient.toLowerCase()] } });
-      console.log(`🔍 Found ${itemsWithIngredient.length} items containing "${ingredient}"`);
+      const itemsWithIngredient = await MenuItem.find({
+        ingredients: { $in: [ingredient.toLowerCase()] },
+      });
+      console.log(
+        `🔍 Found ${itemsWithIngredient.length} items containing "${ingredient}"`
+      );
 
       if (itemsWithIngredient.length > 0) {
         return res.json({
-          reply: `Yes, these items contain ${ingredient}: ${itemsWithIngredient.map(i => i.itemName.en).join(", ")}`,
+          reply: `Yes, these items contain ${ingredient}: ${itemsWithIngredient
+            .map((i) => i.itemName.en)
+            .join(", ")}`,
           intent,
           items: [],
         });
@@ -51,14 +54,19 @@ router.post("/ai-order", async (req, res) => {
       let menuItems = [];
 
       if (category) {
-        menuItems = await MenuItem.find({ category: { $regex: category, $options: "i" } });
+        const normalizedCategory = category.trim().toLowerCase();
+        menuItems = await MenuItem.find({
+          category: { $regex: new RegExp(normalizedCategory, "i") },
+        });
       } else {
         menuItems = await MenuItem.find();
       }
 
       console.log(`📄 Found ${menuItems.length} items`);
       return res.json({
-        reply: `Here are the available items: ${menuItems.map(i => i.itemName.en).join(", ")}`,
+        reply: `Here are the ${category || ""} items: ${menuItems
+          .map((i) => i.itemName.en)
+          .join(", ")}`,
         intent,
         items: [],
       });
@@ -103,7 +111,6 @@ router.post("/ai-order", async (req, res) => {
       tableId: tableId || "",
       specialInstructions: specialInstructions || "",
     });
-
   } catch (error) {
     console.error("🔥 AI Order Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
