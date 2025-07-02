@@ -52,12 +52,14 @@ User: I want 2 masala dosa less spicy and 1 paneer tikka without onion.
 
 - Respond in JSON format as:
 {
-  "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing",
-  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy"  }],
-  "ingredient": "onion",
+  "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing" | ask_discount | check_order_status | place_order | fallback,
+  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy"  }], // optional: e.g., Cold Coffee
+  "ingredient": "onion", // optional: ["less sugar"]
   "category": "Main Course", "South Indian", "Dessert", "Beverages", "Appetizers",
   "reply": "Your response to the user."
 }
+  User can speak Hinglish or English. Be friendly and concise.
+
 `;
 
   const completion = await openai.chat.completions.create({

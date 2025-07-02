@@ -6,6 +6,7 @@ import {
 } from "../services/chatService.js";
 import Order from "../models/Order.js";
 import MenuItem from "../models/MenuItem.js";
+import Category from "../models/Category.js";
 
 const router = express.Router();
 
@@ -49,27 +50,37 @@ router.post("/ai-order", async (req, res) => {
     }
 
     // Menu Browsing
-    if (intent === "menu_browsing") {
-      console.log(`📖 Browsing menu for category: ${category || "ALL"}`);
-      let menuItems = [];
+    if (intent === "menu_browsing" && category) {
+      console.log("📖 Browsing menu for category:", category);
 
-      if (category) {
-        const normalizedCategory = category.trim().toLowerCase();
-        menuItems = await MenuItem.find({
-          category: { $regex: new RegExp(normalizedCategory, "i") },
+      try {
+        // First find the category by name
+        const categoryDoc = await Category.findOne({
+          name: { $regex: category, $options: "i" }, // works because name is String
         });
-      } else {
-        menuItems = await MenuItem.find();
-      }
 
-      console.log(`📄 Found ${menuItems.length} items`);
-      return res.json({
-        reply: `Here are the ${category || ""} items: ${menuItems
-          .map((i) => i.itemName.en)
-          .join(", ")}`,
-        intent,
-        items: [],
-      });
+        if (!categoryDoc) {
+          return res.status(404).json({
+            reply: `Sorry, we couldn’t find anything under ${category}.`,
+            items: [],
+            intent,
+            tableId,
+          });
+        }
+
+        // Then find menu items by category ObjectId
+        const items = await MenuItem.find({ category: categoryDoc._id });
+
+        return res.json({
+          reply,
+          intent,
+          items,
+          tableId,
+        });
+      } catch (err) {
+        console.error("🔥 AI Order Error:", err);
+        return res.status(500).json({ error: "Internal server error" });
+      }
     }
 
     // Normal Order Flow
