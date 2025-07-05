@@ -143,42 +143,45 @@ router.post("/remove-cart-item", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 router.post("/remove", async (req, res) => {
   const { tableId, menuItemId } = req.body;
 
   try {
-    const cart = await Cart.findOne({ tableId });
-    console.log("cart", cart);
+    const cart = await Cart.findOne({ tableId }).populate("items.menuItem");
 
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.menuItem.toString() === menuItemId.toString()
+      (item) => item.menuItem._id.toString() === menuItemId.toString()
     );
-
-    console.log("itemIndex", itemIndex);
 
     if (itemIndex === -1) {
       return res.status(404).json({ message: "Item not found in cart" });
     }
 
     if (cart.items[itemIndex].quantity > 1) {
-      const updatedCart = (cart.items[itemIndex].quantity -= 1);
-      res.status(200).json({ message: "Item updated", updatedCart });
+      cart.items[itemIndex].quantity -= 1;
     } else {
-      // remove item if quantity is 1
-      const updatedCart = cart.items.splice(itemIndex, 1);
-      res.status(200).json({ message: "Item updated", updatedCart });
+      cart.items.splice(itemIndex, 1); // Remove item if quantity is 1
     }
 
-    await cart.save();
-    // res.status(200).json({ message: "Item updated", cart });
+    await cart.save(); // ✅ Save first
+
+    // ✅ Return full updated cart
+    return res.status(200).json({
+      message: "Item updated",
+      cart: {
+        items: cart.items,
+        tableId: cart.tableId,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ message: "Failed to update cart", error: err });
+    console.error("❌ Error in /remove:", err);
+    return res.status(500).json({ message: "Failed to update cart", error: err });
   }
 });
+
 
 export default router;

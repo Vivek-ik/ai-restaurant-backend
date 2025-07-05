@@ -7,6 +7,7 @@ import {
 import Order from "../models/Order.js";
 import MenuItem from "../models/MenuItem.js";
 import Category from "../models/Category.js";
+import { ingredientKnowledge } from "../constants.js";
 
 const router = express.Router();
 
@@ -23,53 +24,80 @@ router.post("/ai-order", async (req, res) => {
       await handleChatQuery(message, lang);
 
     // Ingredient Query
-    if (intent === "ingredient_query") {
-      console.log(`🔎 Checking ingredient: ${ingredient}`);
-      const itemsWithIngredient = await MenuItem.find({
-        ingredients: { $in: [ingredient.toLowerCase()] },
-      });
-      console.log(
-        `🔍 Found ${itemsWithIngredient.length} items containing "${ingredient}"`
-      );
+    if (intent === "ingredient_query" && ingredient) {
+      const ingredientsArray = Array.isArray(ingredient)
+        ? ingredient.map((i) => i.toLowerCase())
+        : [ingredient.toLowerCase()];
 
-      if (itemsWithIngredient.length > 0) {
+      const Fuse = (await import("fuse.js")).default;
+      const fuse = new Fuse(Object.keys(ingredientKnowledge), {
+        includeScore: true,
+        threshold: 0.4,
+      });
+
+      const result = fuse.search(ingredientsArray[0]);
+      if (result.length > 0) {
+        const matchedDish = result[0].item;
         return res.json({
-          reply: `Yes, these items contain ${ingredient}: ${itemsWithIngredient
-            .map((i) => i.itemName.en)
-            .join(", ")}`,
-          intent,
-          items: [],
-        });
-      } else {
-        return res.json({
-          reply: `No menu items contain ${ingredient}.`,
+          reply: `${matchedDish} includes the following ingredients: ${ingredientKnowledge[
+            matchedDish
+          ].join(", ")}`,
           intent,
           items: [],
         });
       }
-    }
 
+      return res.json({
+        reply: `Sorry, I don't have the ingredient details for "${ingredientsArray.join(
+          ", "
+        )}".`,
+        intent,
+        items: [],
+      });
+    }
     // Menu Browsing
-    if (intent === "menu_browsing" && category) {
+    if (intent === "menu_browsing") {
       console.log("📖 Browsing menu for category:", category);
 
       try {
-        // First find the category by name
-        const categoryDoc = await Category.findOne({
-          name: { $regex: category, $options: "i" }, // works because name is String
-        });
+        const categoriesToSearch = category
+          ? Array.isArray(category)
+            ? category
+            : [category]
+          : [];
 
-        if (!categoryDoc) {
+        let categoryDocs;
+
+        if (categoriesToSearch.length > 0) {
+          categoryDocs = await Category.find({
+            name: {
+              $in: categoriesToSearch.map((cat) => new RegExp(`^${cat}$`, "i")),
+            },
+          });
+        } else {
+          // If no category provided, return all categories
+          categoryDocs = await Category.find({});
+        }
+
+        if (categoryDocs.length === 0) {
           return res.status(404).json({
-            reply: `Sorry, we couldn’t find anything under ${category}.`,
+            reply: `Sorry, we couldn’t find anything under ${
+              categoriesToSearch.join(", ") || "menu"
+            }.`,
             items: [],
             intent,
+            category,
             tableId,
           });
         }
 
-        // Then find menu items by category ObjectId
-        const items = await MenuItem.find({ category: categoryDoc._id });
+        const categoryIds = categoryDocs.map((doc) => doc._id);
+
+        const items = await MenuItem.find({
+          category: { $in: categoryIds },
+        }).populate("category");
+
+        console.log("📋 Found items:", items);
 
         return res.json({
           reply,

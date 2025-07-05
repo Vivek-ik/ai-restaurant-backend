@@ -9,7 +9,10 @@ const CartSchema = new mongoose.Schema({
         ref: "MenuItem",
       },
       quantity: Number,
-      customizations: [String],
+        customizations: {
+          type: [String],
+          default: [],
+        },
     },
   ],
 });

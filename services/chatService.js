@@ -3,6 +3,7 @@ import { OpenAI } from "openai";
 import dotenv from "dotenv";
 import MenuItem from "../models/MenuItem.js";
 import Fuse from "fuse.js";
+import { ingredientKnowledge } from "../constants.js";
 
 dotenv.config();
 
@@ -10,10 +11,13 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-
-
-export const handleChatQuery = async (message, lang = "en", intent = "", entities = {}) => {
-const menuItems = await MenuItem.find().populate('category').lean();
+export const handleChatQuery = async (
+  message,
+  lang = "en",
+  intent = "",
+  entities = {}
+) => {
+  const menuItems = await MenuItem.find().populate("category").lean();
 
   const fuse = new Fuse(menuItems, {
     keys: ["itemName.en", "itemName.hi"],
@@ -33,6 +37,19 @@ const menuItems = await MenuItem.find().populate('category').lean();
   const systemPrompt = `
 You are a smart restaurant assistant for Shrimaya. You help users with food menu queries and orders.
 
+Here are the valid food categories in this restaurant:
+- South Indian
+- Chinese
+- Main Course
+- Breads
+- Dessert
+- Beverages
+- Appetizers
+
+Only use the above categories for answering category-based queries.
+Here are ingredients used in some menu items:
+${ingredientKnowledge}
+
 Here is the menu:
 ${menuText}
 
@@ -42,9 +59,12 @@ Your tasks:
 - Understand user intent.
 - If the user asks about a category (like South Indian, dessert, starters), filter the menu by that.
 - If the user gives customizations like "less spicy", "without onion", "extra cheese", extract them as special instructions or customizations.
-- For ingredient queries, check if the ingredient exists in any menu items.
+- For ingredient queries, use the dish name as the \`ingredient\` field (as a string, not array).
 - For ordering, extract item names, quantity, and customizations.
 - Include special instructions like “less spicy”, “without onion”, “extra cheese” for each item **under item.specialInstructions** when mentioned.
+- If the user asks about a category (like "South Indian", "Chinese", etc), return it in the field \`category\` as a string or array of strings **exactly matching the list above**.
+- If the user asks for multiple categories, return them in an array: ["South Indian", "Chinese"]
+- Do not invent or guess categories beyond this list.
 
 Example:
 User: I want 2 masala dosa less spicy and 1 paneer tikka without onion.
@@ -53,10 +73,10 @@ User: I want 2 masala dosa less spicy and 1 paneer tikka without onion.
 - Respond in JSON format as:
 {
   "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing" | ask_discount | check_order_status | place_order | fallback,
-  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy"  }], // optional: e.g., Cold Coffee
+  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy",  "price": 180  }], // optional: e.g., Cold Coffee
   "ingredient": "onion", // optional: ["less sugar"]
-  "category": "Main Course", "South Indian", "Dessert", "Beverages", "Appetizers",
-  "reply": "Your response to the user."
+  "category": ["South Indian", "Chinese"],
+  "reply": "South Indian menu mein Masala Dosa hai, Chinese menu mein Spring Rolls aur Noodles hain.",
 }
   User can speak Hinglish or English. Be friendly and concise.
 
@@ -87,7 +107,7 @@ Return JSON in this format:
 {
   "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing",
   "entities": {
-    "items": [{ "name": "Item Name", "quantity": 2 }],
+    "items": [{ "name": "Item Name", "quantity": 2,  "price": 180 }],
     "ingredient": "onions",
     "category": "pizza",
     "specialInstructions": "less spicy"
