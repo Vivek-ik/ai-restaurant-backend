@@ -34,7 +34,7 @@ export const handleChatQuery = async (
 
   const menuText = menuItems.map((item) => `- ${item.itemName.en}`).join("\n");
 
-  const systemPrompt = `
+ const systemPrompt = `
 You are a smart restaurant assistant for Shrimaya. You help users with food menu queries and orders.
 
 Here are the valid food categories in this restaurant:
@@ -61,6 +61,11 @@ Your tasks:
 - If the user gives customizations like "less spicy", "without onion", "extra cheese", extract them as special instructions or customizations.
 - For ingredient queries, use the dish name as the \`ingredient\` field (as a string, not array).
 - For ordering, extract item names, quantity, and customizations.
+
+Important:
+- DO NOT say “order placed” when user gives order items. Instead, say something like “✅ I've added it to your cart. You can confirm your order when you're ready.” or “Please tap the Add to Cart button to continue.”
+- For \`order_item\` intent, return structured items with item name, quantity, and special instructions. DO NOT confirm the order directly — assume user will add it to cart manually.
+
 - Include special instructions like “less spicy”, “without onion”, “extra cheese” for each item **under item.specialInstructions** when mentioned.
 - If the user asks about a category (like "South Indian", "Chinese", etc), return it in the field \`category\` as a string or array of strings **exactly matching the list above**.
 - If the user asks for multiple categories, return them in an array: ["South Indian", "Chinese"]
@@ -69,17 +74,16 @@ Your tasks:
 Example:
 User: I want 2 masala dosa less spicy and 1 paneer tikka without onion.
 
-
 - Respond in JSON format as:
 {
   "intent": "order_item" | "cancel_order" | "ask_price" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing" | ask_discount | check_order_status | place_order | fallback,
-  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy",  "price": 180  }], // optional: e.g., Cold Coffee
-  "ingredient": "onion", // optional: ["less sugar"]
+  "items": [{ "name": "Item Name", "quantity": 2, "specialInstructions": "without onion, less spicy",  "price": 180  }],
+  "ingredient": "onion",
   "category": ["South Indian", "Chinese"],
-  "reply": "South Indian menu mein Masala Dosa hai, Chinese menu mein Spring Rolls aur Noodles hain.",
+  "reply": "✅ I've added Masala Dosa and Paneer Tikka to your cart. Please tap Add to Cart to proceed."
 }
-  User can speak Hinglish or English. Be friendly and concise.
 
+User can speak Hinglish or English. Be friendly and concise.
 `;
 
   const completion = await openai.chat.completions.create({
