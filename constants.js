@@ -5,7 +5,7 @@ export const ingredientKnowledge = {
     "green chili", "turmeric", "salt", "ginger", "oil"
   ],
   "Paneer Butter Masala": [
-    "paneer (low-fat)", "tomatoes", "cashew paste", "ginger",
+    "paneer (low-fat)", "tomatoes", "cashew paste", "ginger", "onion",
     "garlic", "butter (in moderation)", "fresh cream (optional)",
     "turmeric", "red chili powder", "garam masala",
     "kasuri methi", "salt", "olive oil"
@@ -35,6 +35,52 @@ export const ingredientKnowledge = {
     "brown basmati rice", "carrot", "beans", "peas", "potatoes",
     "curd", "mint", "coriander", "biryani masala",
     "saffron", "olive oil"
+  ],
+  "Gulab Jamun": [
+    "khoya", "maida", "milk", "ghee", "baking soda",
+    "sugar", "cardamom", "rose water"
+  ],
+  "Butter Naan": [
+    "maida", "baking powder", "baking soda", "yogurt",
+    "milk", "sugar", "salt", "butter"
+  ],
+  "Tandoori Roti": [
+    "whole wheat flour", "salt", "water", "ghee"
+  ],
+  "Shahi Paneer": [
+    "paneer", "onion", "cashews", "cream", "tomatoes",
+    "ginger", "garlic", "garam masala", "cardamom", "butter"
+  ],
+  "Hakka Noodles": [
+    "hakka noodles", "carrot", "capsicum", "cabbage",
+    "soy sauce", "vinegar", "green chili", "ginger", "garlic", "oil"
+  ],
+  "Manchurian": [
+    "cabbage", "carrot", "spring onion", "corn flour", "maida",
+    "soy sauce", "ginger", "garlic", "vinegar", "oil"
+  ],
+  "Coconut Water": [
+    "fresh coconut water", "malai"
+  ],
+
+  // 🆕 New Additions:
+
+  "Chicken Biryani": [
+    "basmati rice", "chicken", "yogurt", "onion", "tomato",
+    "ginger", "garlic", "biryani masala", "mint", "coriander",
+    "green chili", "ghee", "saffron", "salt", "garam masala"
+  ],
+  "Murg Tikka Masala": [
+    "chicken", "yogurt", "lemon juice", "ginger", "garlic",
+    "red chili powder", "turmeric", "garam masala", "onion",
+    "tomatoes", "cream", "coriander", "butter", "kasuri methi", "salt"
+  ],
+  "Fish Fry": [
+    "fish fillet", "ginger garlic paste", "lemon juice",
+    "red chili powder", "turmeric", "salt", "rice flour",
+    "semolina (rava)", "mustard seeds", "oil", "curry leaves"
+  ],
+  "Butter Tandoori Roti": [
+    "whole wheat flour", "salt", "curd", "ghee", "butter", "water"
   ]
-  // 🔧 Add more mappings here for additional items
 };
