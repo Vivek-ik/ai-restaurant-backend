@@ -12,48 +12,60 @@ import { ingredientKnowledge } from "../constants.js";
 const router = express.Router();
 
 router.post("/ai-order", async (req, res) => {
-  const { message, lang = "en", tableId, previousMessages } = req.body;
-  console.log("➡️ Received request:", { message, lang, tableId, previousMessages });
+  const { message, lang = "en", tableId, previousMessages, suggestedItems } = req.body;
+  console.log("➡️ Received request:", {
+    message,
+    lang,
+    tableId,
+    previousMessages,
+  });
 
   if (!message) {
     return res.status(400).json({ message: "Message is required." });
   }
 
   try {
-    const chatResult = await handleChatQuery(message, lang, previousMessages);
+    const chatResult = await handleChatQuery(message, lang, previousMessages,suggestedItems);
     const { intent, items, ingredient, category, reply, specialInstructions } =
       chatResult;
 
+    console.log("chatResult", reply);
+
     // ✅ Order Item Intent
     if (intent === "order_item") {
+      const allMenuItems = await MenuItem.find().populate("category").lean();
       const enrichedItems = [];
 
       for (const item of items || []) {
-        const searchName = item.name.trim().toLowerCase();
+        const searchName = item.name?.trim().toLowerCase();
 
-        const menuItem = await MenuItem.findOne({
-          $or: [
-            { "itemName.en": { $regex: searchName, $options: "i" } },
-            { "itemName.hi": { $regex: searchName, $options: "i" } },
-          ],
+        const matchedMenuItem = allMenuItems.find((menuItem) => {
+          const enName = menuItem.itemName?.en?.trim().toLowerCase();
+          const hiName = menuItem.itemName?.hi?.trim().toLowerCase();
+          return (
+            enName === searchName ||
+            hiName === searchName ||
+            enName.includes(searchName) || // fuzzy match fallback
+            hiName?.includes(searchName)
+          );
         });
 
-        if (menuItem) {
+        if (matchedMenuItem) {
           enrichedItems.push({
-            id: menuItem._id,
-            name: menuItem.itemName,
+            id: matchedMenuItem._id,
+            name: matchedMenuItem.itemName,
             quantity: item.quantity || 1,
-            price: menuItem.price,
+            price: matchedMenuItem.price,
             specialInstructions: item.specialInstructions || "",
           });
         } else {
-          enrichedItems.push(item); // fallback if no exact match
+          enrichedItems.push(item); // fallback if no match
         }
       }
 
       return res.json({
         reply:
-          reply || "I've added it to your cart. You can confirm when ready.",
+          reply || "Please mention the name of the dish to order.",
         intent,
         items: enrichedItems,
         tableId: tableId || "",
@@ -70,6 +82,8 @@ router.post("/ai-order", async (req, res) => {
       const allMenuItems = await MenuItem.find().populate("category").lean();
 
       const filteredItems = allMenuItems.filter((item) => {
+        console.log("filteredItems", filteredItems);
+
         const itemName = item.itemName.en.trim().toLowerCase();
 
         // 🔎 Match ingredientKnowledge by normalized item name
@@ -110,11 +124,7 @@ router.post("/ai-order", async (req, res) => {
         intent,
         ingredient,
         tableId,
-        items: filteredItems.map((i) => ({
-          name: i.itemName.en,
-          price: i.price,
-          category: i.category?.name || "Uncategorized",
-        })),
+        items: filteredItems,
       });
     }
 
