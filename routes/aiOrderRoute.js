@@ -82,7 +82,6 @@ router.post("/ai-order", async (req, res) => {
       const allMenuItems = await MenuItem.find().populate("category").lean();
 
       const filteredItems = allMenuItems.filter((item) => {
-        console.log("filteredItems", filteredItems);
 
         const itemName = item.itemName.en.trim().toLowerCase();
 
