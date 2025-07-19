@@ -12,7 +12,13 @@ import { ingredientKnowledge } from "../constants.js";
 const router = express.Router();
 
 router.post("/ai-order", async (req, res) => {
-  const { message, lang = "en", tableId, previousMessages, suggestedItems } = req.body;
+  const {
+    message,
+    lang = "en",
+    tableId,
+    previousMessages,
+    suggestedItems,
+  } = req.body;
   console.log("➡️ Received request:", {
     message,
     lang,
@@ -25,11 +31,32 @@ router.post("/ai-order", async (req, res) => {
   }
 
   try {
-    const chatResult = await handleChatQuery(message, lang, previousMessages,suggestedItems);
-    const { intent, items, ingredient, category, reply, specialInstructions } =
-      chatResult;
+    const chatResult = await handleChatQuery(
+      message,
+      lang,
+      previousMessages,
+      suggestedItems
+    );
+    const {
+      intent,
+      items,
+      ingredient,
+      category,
+      reply,
+      specialInstructions,
+      mode,
+    } = chatResult;
 
-    console.log("chatResult", reply);
+    console.log(
+      "chatResult",
+      intent,
+      items,
+      ingredient,
+      category,
+      reply,
+      specialInstructions,
+      mode
+    );
 
     // ✅ Order Item Intent
     if (intent === "order_item") {
@@ -64,8 +91,7 @@ router.post("/ai-order", async (req, res) => {
       }
 
       return res.json({
-        reply:
-          reply || "Please mention the name of the dish to order.",
+        reply: reply || "Please mention the name of the dish to order.",
         intent,
         items: enrichedItems,
         tableId: tableId || "",
@@ -74,54 +100,127 @@ router.post("/ai-order", async (req, res) => {
     }
 
     // ✅ Ingredient Query intent
+
     if (intent === "filter_by_ingredients" && ingredient) {
-      const excludedIngredients = ingredient
+      const ingredientsToMatch = ingredient
         .split(",")
         .map((i) => i.trim().toLowerCase());
 
       const allMenuItems = await MenuItem.find().populate("category").lean();
 
       const filteredItems = allMenuItems.filter((item) => {
-
         const itemName = item.itemName.en.trim().toLowerCase();
 
-        // 🔎 Match ingredientKnowledge by normalized item name
         const matchedKey = Object.keys(ingredientKnowledge).find(
           (key) => key.trim().toLowerCase() === itemName
         );
 
-        const ingredients = matchedKey
-          ? ingredientKnowledge[matchedKey].map((ing) => ing.toLowerCase())
-          : [];
-
-        const hasExcludedIngredient = ingredients.some((ing) =>
-          excludedIngredients.includes(ing)
-        );
+        const ingredients =
+          matchedKey && ingredientKnowledge[matchedKey]
+            ? ingredientKnowledge[matchedKey].map((ing) => ing.toLowerCase())
+            : [];
 
         const isNonVeg = item.tags?.some((tag) =>
           tag.toLowerCase().includes("non-veg")
         );
 
-        // ❌ Exclude if it has any banned ingredient or is non-veg
-        return !hasExcludedIngredient && !isNonVeg;
+        const hasMatch = ingredientsToMatch.some((ing) =>
+          ingredients.includes(ing)
+        );
+
+        if (mode === "exclude") {
+          return !hasMatch && !isNonVeg;
+        } else if (mode === "include") {
+          return hasMatch;
+        }
+
+        return true; // fallback
       });
 
       if (filteredItems.length === 0) {
         return res.status(404).json({
-          reply: `Sorry, no dishes are available without ${ingredient}.`,
+          reply: `Sorry, no dishes found ${
+            mode === "exclude" ? "without" : "with"
+          } ${ingredient}.`,
           items: [],
           intent,
           ingredient,
+          mode,
           tableId,
         });
       }
 
       return res.json({
-        reply: `Here are dishes without ${ingredient}: ${filteredItems
+        reply: `Here are dishes ${
+          mode === "exclude" ? "without" : "with"
+        } ${ingredient}: ${filteredItems.map((i) => i.itemName.en).join(", ")}`,
+        intent,
+        ingredient,
+        mode,
+        tableId,
+        items: filteredItems,
+      });
+    }
+
+    // menu browsing and veg non veg
+    const cleanedMessage = message
+      .replace(/:[^:\s]*(?:::[^:\s]*)*:/g, "")
+      .toLowerCase();
+
+    const cleanedLowerMessage = cleanedMessage.toLowerCase();
+
+    // ✅ Add Hindi and Hinglish patterns
+    const isLookingForVeg =
+      /(veg|vegetarian|वेज|शाकाहारी)/i.test(cleanedLowerMessage) &&
+      !/(non[- ]?veg|non[- ]?vegetarian|नॉन[- ]?वेज|मांसाहारी)/i.test(
+        cleanedLowerMessage
+      );
+
+    const isLookingForNonVeg =
+      /(non[- ]?veg|non[- ]?vegetarian|नॉन[- ]?वेज|मांसाहारी)/i.test(
+        cleanedLowerMessage
+      );
+
+    let filteredItems;
+
+    if (isLookingForVeg || isLookingForNonVeg) {
+      const allMenuItems = await MenuItem.find().populate("category").lean();
+
+      filteredItems = allMenuItems.filter((item) => {
+        const tags = item.tags?.map((t) => t.toLowerCase()) || [];
+
+        console.log("tag 1111", !tags.includes("non-veg"));
+        console.log("tag 2222", tags.includes("non-veg"));
+
+        if (isLookingForVeg) return !tags.includes("non-veg");
+        if (isLookingForNonVeg) return tags.includes("non-veg");
+        return true;
+      });
+
+      const replyText = isLookingForVeg
+        ? "Here are today's vegetarian options:"
+        : isLookingForNonVeg
+        ? "Here are today's non-vegetarian options:"
+        : "Here are today's menu items:";
+
+      console.log("filteredItemsfilteredItems", filteredItems);
+
+      if (filteredItems?.length === 0) {
+        return res.status(404).json({
+          reply: `Sorry, no ${
+            isLookingForVeg ? "vegetarian" : "non-vegetarian"
+          } dishes found.`,
+          items: [],
+          intent,
+          tableId,
+        });
+      }
+
+      return res.json({
+        reply: `${replyText} ${filteredItems
           .map((i) => i.itemName.en)
           .join(", ")}`,
         intent,
-        ingredient,
         tableId,
         items: filteredItems,
       });

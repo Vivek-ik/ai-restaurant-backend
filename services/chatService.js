@@ -12,92 +12,109 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-  export const handleChatQuery = async (
-    message,
-    lang = "en",
-    previousMessages = [],
-    suggestedItems = []
-  ) => {
-    const menuItems = await MenuItem.find().populate("category").lean();
+export const handleChatQuery = async (
+  message,
+  lang = "en",
+  previousMessages = [],
+  suggestedItems = []
+) => {
+  const menuItems = await MenuItem.find().populate("category").lean();
 
-    const fuse = new Fuse(menuItems, {
-      keys:
-        lang === "hi"
-          ? ["itemName.hi", "itemName.en"]
-          : ["itemName.en", "itemName.hi"],
-      threshold: 0.4,
-    });
-    // console.log("suggestedItems", suggestedItems);
+  const fuse = new Fuse(menuItems, {
+    keys:
+      lang === "hi"
+        ? ["itemName.hi", "itemName.en"]
+        : ["itemName.en", "itemName.hi"],
+    threshold: 0.4,
+  });
+  // console.log("suggestedItems", suggestedItems);
 
-    const results = fuse.search(message);
-    let clarificationPrompt = "";
+  const results = fuse.search(message);
+  let clarificationPrompt = "";
 
-    if (results.length > 0) {
-      const topMatch = results[0].item.itemName.en;
-      clarificationPrompt = `The user might be referring to "${topMatch}". If correct, suggest it.`;
-    }
+  if (results.length > 0) {
+    const topMatch = results[0].item.itemName.en;
+    clarificationPrompt = `The user might be referring to "${topMatch}". If correct, suggest it.`;
+  }
 
-    const categories = await Category.find();
+  const categories = await Category.find();
 
-    const menuText = categories
-      .map((cat) => {
-        const itemsInCat = menuItems
-          .filter((item) => item.category?.name === cat.name)
-          .map((item) => `- ${item.itemName.en}`)
-          .join("\n");
+  const menuText = categories
+    .map((cat) => {
+      const itemsInCat = menuItems
+        .filter((item) => item.category?.name === cat.name)
+        .map((item) => `- ${item.itemName.en}`)
+        .join("\n");
 
-        return `Category: ${cat.name}\n${itemsInCat}`;
-      })
-      .join("\n\n");
+      return `Category: ${cat.name}\n${itemsInCat}`;
+    })
+    .join("\n\n");
+
+  // 🔄 Track previously mentioned dishes or categories
+  const lastAIResponse = [...previousMessages];
+
+  let lastSuggestedItems = [];
+
+  if (lastAIResponse?.text) {
+    // First try extracting via regex
+    const itemMatches = [
+      ...lastAIResponse.text.matchAll(
+        /(?:includes|have|offers|dishes like|such as|here are|We have|in the|category|yah|order).*?((?:\b[A-Z][a-z]+(?: [A-Z][a-z]+)*\b)(?:,? ?(?:and)? ?\b[A-Z][a-z]+)*)/gi
+      ),
+    ];
+
+    console.log("itemMatches", itemMatches);
 
     // 🔄 Track previously mentioned dishes or categories
-    const lastAIResponse = [...previousMessages];
+    const lastAIMessage = [...previousMessages]
+      .reverse()
+      .find((m) => m.from === "ai" && m.items?.length > 0);
 
-    let lastSuggestedItems = [];
-
-    if (lastAIResponse?.text) {
-      // First try extracting via regex
-      const itemMatches = [
-        ...lastAIResponse.text.matchAll(
-          /(?:includes|have|offers|dishes like|such as|here are|We have|in the|category|yah|order).*?((?:\b[A-Z][a-z]+(?: [A-Z][a-z]+)*\b)(?:,? ?(?:and)? ?\b[A-Z][a-z]+)*)/gi
-        ),
-      ];
-
-      console.log("itemMatches", itemMatches);
-
-      // 🔄 Track previously mentioned dishes or categories
-      const lastAIMessage = [...previousMessages]
-        .reverse()
-        .find((m) => m.from === "ai" && m.items?.length > 0);
-
-      if (lastAIMessage?.items?.length) {
-        lastSuggestedItems = lastAIMessage.items
-          .map((i) => i.itemName?.en)
-          .filter(Boolean);
-      } else if (suggestedItems?.length > 0) {
-        lastSuggestedItems = suggestedItems;
-      }
+    if (lastAIMessage?.items?.length) {
+      lastSuggestedItems = lastAIMessage.items
+        .map((i) => i.itemName?.en)
+        .filter(Boolean);
+    } else if (suggestedItems?.length > 0) {
+      lastSuggestedItems = suggestedItems;
     }
+  }
 
-    // ✅ Emoji cleanup - remove spelled-out emoji names (e.g., ":waving_hand:")
-    const cleanedMessage = message.replace(/:[^:\s]*(?:::[^:\s]*)*:/g, "");
+  // ✅ Emoji cleanup - remove spelled-out emoji names (e.g., ":waving_hand:")
+  const cleanedMessage = message.replace(/:[^:\s]*(?:::[^:\s]*)*:/g, "");
 
-    // Detect excluded ingredients
-    const exclusionRegex = new RegExp(
-      [
-        "\\b(?:without|no|skip|avoid|exclude|hat(?:a)?\\s*do|nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|bina|binna)\\s+(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\b",
-        "\\b(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\s+(nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|avoid\\s*karo|hat(?:a)?\\s*do)\\b",
-      ].join("|"),
-      "gi"
-    );
+  // Detect excluded ingredients
+  const exclusionRegex = new RegExp(
+    [
+      "\\b(?:without|no|skip|avoid|exclude|hat(?:a)?\\s*do|nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|bina|binna)\\s+(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\b",
+      "\\b(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\s+(nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|avoid\\s*karo|hat(?:a)?\\s*do)\\b",
+    ].join("|"),
+    "gi"
+  );
 
-    const exclusions = [];
-    let match;
-    while ((match = exclusionRegex.exec(cleanedMessage)) !== null) {
-      exclusions.push(match[1]?.toLowerCase());
-    }
+  const ingredientQueryRegex = new RegExp(
+    [
+      "\\b(?:mein|me|contains|have|has|hai|kya\\s*hai|hai\\s*ya\\s*nahi)\\b\\s*(onion|garlic|lehsun|lahsun|pyaaz|pyaz)",
+      "(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\s*(hai|kya\\s*hai|hai\\s*ya\\s*nahi)",
+    ].join("|"),
+    "gi"
+  );
 
-    const systemPrompt = `
+  const exclusions = [];
+  let match;
+  while ((match = exclusionRegex.exec(cleanedMessage)) !== null) {
+    exclusions.push(match[1]?.toLowerCase());
+  }
+
+  let ingredientQuery = "";
+  let ingredientMatch;
+  while (
+    (ingredientMatch = ingredientQueryRegex.exec(cleanedMessage)) !== null
+  ) {
+    ingredientQuery =
+      ingredientMatch[1]?.toLowerCase() || ingredientMatch[2]?.toLowerCase();
+  }
+
+  const systemPrompt = `
   You are a smart restaurant assistant for Shrimaya. You help users with food menu queries and orders.
 
   Here are the valid food categories in this restaurant:
@@ -122,11 +139,14 @@ const openai = new OpenAI({
   - Understand user intent.
   - If the user asks about a category (like South Indian, dessert, starters), filter the menu by that.
   - If the user gives customizations like "less spicy", "without onion", "extra cheese", extract them as special instructions or customizations.
-  - For ingredient queries, use the dish name as the \`ingredient\` field (as a string, not array).
+  + For ingredient queries, use the dish name as item field and list the ingredients under ingredients as an array of strings.
+  + Example: If user asks "What are the ingredients in Paneer Butter Masala?", respond as:
   - Do NOT assume the user wants to order just because they mention a dish name.
   - Only extract an item under "items" if the user clearly shows intent to order — e.g. uses phrases like “I want”, “get me”, “order”, “2 plates of”, “add”, “mujhe yeh chahiye”, “mujhe yeh order karna hai”, etc.
   - In case the user says "mujhe yeh order karna hai" or "Mujhe yah order kar do" or "get me this" **as a follow-up**, refer to the previously suggested dish (like "${lastSuggestedItems?.[0]}") and treat it as the intended order item.
   - If the user is just naming a dish or asking about it (e.g., "Masala Dosa" or "What is Masala Dosa"), do not treat it as an order. Instead, detect it as an ingredient_query or menu_browsing.
+  + "Bina lahsun pyaaz ke options dikhaiye" → intent: filter_by_ingredients, ingredient: "onion, garlic", mode: "exclude"
+  + "Tamatar wali dish dikhao" → intent: filter_by_ingredients, ingredient: "tomato", mode: "include"
 
   Important:
   - DO NOT say “order placed” when user gives order items. Instead, say something like “ I've added it to your cart. You can confirm your order when you're ready.” or “Please tap the Add to Cart button to continue.”
@@ -152,109 +172,119 @@ const openai = new OpenAI({
   User can speak Hinglish or English. Be friendly and concise.
   `;
 
-    const messageHistory = previousMessages
-      .filter((msg) => !!msg.text) // ✅ only keep messages with valid text
-      .slice(-4)
-      .map((msg) => ({
-        role: msg.from === "user" ? "user" : "assistant",
-        content: msg.text,
-      }));
+  const messageHistory = previousMessages
+    .filter((msg) => !!msg.text) // ✅ only keep messages with valid text
+    .slice(-4)
+    .map((msg) => ({
+      role: msg.from === "user" ? "user" : "assistant",
+      content: msg.text,
+    }));
 
-    console.log("messageHistory", messageHistory);
+  console.log("messageHistory", messageHistory);
 
-    // ✨ Add last suggested item in context if applicable
+  // ✨ Add last suggested item in context if applicable
 
-    if (lastSuggestedItems.length === 1) {
-      messageHistory.push({
-        role: "system",
-        content: `Only one item was suggested earlier: "${lastSuggestedItems[0]}". If the user says "mujhe yeh, yeh, yah", assume they mean this.`,
-      });
-    } else if (lastSuggestedItems.length > 1) {
-      messageHistory.push({
-        role: "system",
-        content: `Multiple items were suggested earlier: ${lastSuggestedItems.join(
-          ", "
-        )}. If the user says "yeh", ask them to clarify which one.`,
-      });
-    }
-
-    // Add this BEFORE sending to OpenAI
-    let finalUserMessage = cleanedMessage;
-
-    if (exclusions.length > 0) {
-      finalUserMessage =
-        `User wants dishes without: ${exclusions.join(", ")}. ` +
-        finalUserMessage;
-    }
-
-    // If user message is vague and contains "yeh", "this", "ye item", etc. — inject clarification
-    const vagueOrderRegex =
-      /\b(yeh|ye|this|ye item|ye wala|isse|isko|isey|order karo|mujhe yeh chahiye|mujhe yeh order karna hai)\b/i;
-    const isVagueOrder = vagueOrderRegex.test(cleanedMessage);
-    console.log("previuoss mess:", previousMessages);
-
-    // later can be used
-    // if (isVagueOrder && lastSuggestedItems.length === 1) {
-    //   finalUserMessage += ` (User is referring to: "${lastSuggestedItems[0]}")`;
-    // } else if (isVagueOrder && lastSuggestedItems.length > 1) {
-    //   finalUserMessage += ` (User said 'yeh' but multiple items were suggested: ${lastSuggestedItems.join(
-    //     ", "
-    //   )}. Ask them to specify.)`;
-    // }
-
-    if (isVagueOrder) {
-      finalUserMessage += ` (User gave a vague order using "yeh". Ask them to clearly mention the dish name to proceed.)`;
-    }
-    console.log("lastSuggestedItem", lastSuggestedItems);
-
-    if (exclusions.length > 0) {
-      finalUserMessage =
-        `User wants dishes without: ${exclusions.join(", ")}. ` +
-        finalUserMessage;
-    }
-
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...messageHistory,
-      { role: "user", content: finalUserMessage },
-    ];
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages,
-      temperature: 0.2,
+  if (lastSuggestedItems.length === 1) {
+    messageHistory.push({
+      role: "system",
+      content: `Only one item was suggested earlier: "${lastSuggestedItems[0]}". If the user says "mujhe yeh, yeh, yah", assume they mean this.`,
     });
+  } else if (lastSuggestedItems.length > 1) {
+    messageHistory.push({
+      role: "system",
+      content: `Multiple items were suggested earlier: ${lastSuggestedItems.join(
+        ", "
+      )}. If the user says "yeh", ask them to clarify which one.`,
+    });
+  }
 
-    const rawReply = completion.choices[0].message.content;
-    console.log("rawReply", rawReply);
+  // Add this BEFORE sending to OpenAI
+  let finalUserMessage = cleanedMessage;
 
-    console.log("LLM Chat Response:", rawReply);
+  if (exclusions.length > 0) {
+    finalUserMessage =
+      `User wants dishes without: ${exclusions.join(", ")}. ` +
+      finalUserMessage;
+  }
 
-    // ✅ Add a try/catch with a proper check before parsing
-    try {
-      const jsonReply = JSON.parse(rawReply);
+  if (ingredientQuery) {
+    console.log("here is ingredient query", ingredientQuery);
 
-      // Optional fix for ingredient_query intent fallback:
-      if (exclusions.length > 0 && jsonReply.intent === "menu_browsing") {
-        jsonReply.intent = "ingredient_query";
-        jsonReply.ingredient = exclusions.join(", ");
-        jsonReply.reply = `Here are dishes that do not contain: ${exclusions.join(
-          ", "
-        )}`;
-      }
+    finalUserMessage =
+      `User is asking if a dish contains: ${ingredientQuery}. ` +
+      finalUserMessage;
+  }
 
-      return jsonReply;
-    } catch (err) {
-      console.log("LLM Chat Response (non-JSON):", rawReply);
-      return {
-        intent: "fallback",
-        items: [],
-        reply: rawReply,
-        specialInstructions: "",
-        tableId: "1",
-      };
+  // If user message is vague and contains "yeh", "this", "ye item", etc. — inject clarification
+  const vagueOrderRegex =
+    /\b(yeh|ye|this|ye item|ye wala|isse|isko|isey|order karo|mujhe yeh chahiye|mujhe yeh order karna hai)\b/i;
+  const isVagueOrder = vagueOrderRegex.test(cleanedMessage);
+  console.log("previuoss mess:", previousMessages);
+
+  // later can be used
+  if (isVagueOrder && lastSuggestedItems.length === 1) {
+    finalUserMessage += ` (User is referring to: "${lastSuggestedItems[0]}")`;
+  } else if (isVagueOrder && lastSuggestedItems.length > 1) {
+    finalUserMessage += ` (User said 'yeh' but multiple items were suggested: ${lastSuggestedItems.join(
+      ", "
+    )}. Ask them to specify.)`;
+  }
+
+  if (isVagueOrder) {
+    finalUserMessage += ` (User gave a vague order using "yeh". Ask them to clearly mention the dish name to proceed.)`;
+  }
+  console.log("lastSuggestedItem", lastSuggestedItems);
+
+  if (exclusions.length > 0) {
+    finalUserMessage =
+      `User wants dishes without: ${exclusions.join(", ")}. ` +
+      finalUserMessage;
+  }
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...messageHistory,
+    { role: "user", content: finalUserMessage },
+  ];
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages,
+    temperature: 0.2,
+  });
+
+  const rawReply = completion.choices[0].message.content;
+  console.log("rawReply", rawReply);
+
+  console.log("LLM Chat Response:", rawReply);
+
+  // ✅ Add a try/catch with a proper check before parsing
+  try {
+    const jsonReply = JSON.parse(rawReply);
+
+    console.log("exclusions", exclusions);
+
+    // Optional fix for ingredient_query intent fallback:
+    if (exclusions.length > 0 && jsonReply.intent === "menu_browsing") {
+      jsonReply.intent = "ingredient_query";
+      jsonReply.ingredient = exclusions.join(", ");
+      jsonReply.reply = `Here are dishes that do not contain: ${exclusions.join(
+        ", "
+      )}`;
     }
-  };
+
+    return jsonReply;
+  } catch (err) {
+    console.log("LLM Chat Response (non-JSON):", rawReply);
+    return {
+      intent: "fallback",
+      items: [],
+      reply: rawReply,
+      specialInstructions: "",
+      tableId: "1",
+    };
+  }
+};
 
 export const detectIntentAndEntities = async (message, lang = "en") => {
   const prompt = `
