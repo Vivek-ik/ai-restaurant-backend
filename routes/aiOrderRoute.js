@@ -189,9 +189,6 @@ router.post("/ai-order", async (req, res) => {
       filteredItems = allMenuItems.filter((item) => {
         const tags = item.tags?.map((t) => t.toLowerCase()) || [];
 
-        console.log("tag 1111", !tags.includes("non-veg"));
-        console.log("tag 2222", tags.includes("non-veg"));
-
         if (isLookingForVeg) return !tags.includes("non-veg");
         if (isLookingForNonVeg) return tags.includes("non-veg");
         return true;
@@ -203,7 +200,6 @@ router.post("/ai-order", async (req, res) => {
         ? "Here are today's non-vegetarian options:"
         : "Here are today's menu items:";
 
-      console.log("filteredItemsfilteredItems", filteredItems);
 
       if (filteredItems?.length === 0) {
         return res.status(404).json({

@@ -115,7 +115,7 @@ export const handleChatQuery = async (
   }
 
   const systemPrompt = `
-  You are a smart restaurant assistant for Shrimaya. You help users with food menu queries and orders.
+  You are a smart restaurant assistant for Bob's cafe. You help users with food menu queries and orders.
 
   Here are the valid food categories in this restaurant:
   - South Indian
@@ -149,7 +149,6 @@ export const handleChatQuery = async (
   + "Tamatar wali dish dikhao" → intent: filter_by_ingredients, ingredient: "tomato", mode: "include"
 
   Important:
-  - DO NOT say “order placed” when user gives order items. Instead, say something like “ I've added it to your cart. You can confirm your order when you're ready.” or “Please tap the Add to Cart button to continue.”
   - For \`order_item\` intent, return structured items with item name, quantity, and special instructions. DO NOT confirm the order directly — assume user will add it to cart manually, ut if you don't find the item then reply with please mention the dish name to order or ask mujhe menuu dikhao.
   - Include special instructions like “less spicy”, “without onion”, “extra cheese” for each item **under item.specialInstructions** when mentioned.
   - If the user asks about a category (like "South Indian", "Chinese", etc), return it in the field \`category\` as a string or array of strings **exactly matching the list above**.
