@@ -46,7 +46,7 @@ export const handleChatQuery = async (
         .map((item) => `- ${item.itemName.en}`)
         .join("\n");
 
-      return `Category: ${cat.name}\n${itemsInCat}`;
+      return `${cat.name}\n${itemsInCat}`;
     })
     .join("\n\n");
 
@@ -114,8 +114,17 @@ export const handleChatQuery = async (
       ingredientMatch[1]?.toLowerCase() || ingredientMatch[2]?.toLowerCase();
   }
 
+  // 📌 Language instruction for response
+const responseLanguageNote =
+  lang === "hi"
+    ? `⚠️ Reply in Hindi language (Devanagari), but wrap it in proper JSON containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON and "reply" should be in Hindi.`
+       : `⚠️ Reply in English. You MUST respond with a valid JSON object containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON.`;
+;
+
   const systemPrompt = `
   You are a smart restaurant assistant for Bob's cafe. You help users with food menu queries and orders.
+
+  ${responseLanguageNote}
 
   Here are the valid food categories in this restaurant:
   - South Indian
