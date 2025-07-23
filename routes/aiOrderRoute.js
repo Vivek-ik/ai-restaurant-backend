@@ -64,6 +64,8 @@ router.post("/ai-order", async (req, res) => {
       const enrichedItems = [];
 
       for (const item of items || []) {
+        console.log("item2222", item);
+
         const searchName = item.name?.trim().toLowerCase();
 
         const matchedMenuItem = allMenuItems.find((menuItem) => {
@@ -89,6 +91,8 @@ router.post("/ai-order", async (req, res) => {
           enrichedItems.push(item); // fallback if no match
         }
       }
+
+      console.log("Enriched Items:", specialInstructions);
 
       return res.json({
         reply: reply || "Please mention the name of the dish to order.",
@@ -135,6 +139,84 @@ router.post("/ai-order", async (req, res) => {
         }
 
         return true; // fallback
+      });
+
+          // ✅ Menu Browsing
+    if (intent === "menu_browsing") {
+      const categoriesToSearch = category
+        ? Array.isArray(category)
+          ? category
+          : [category]
+        : [];
+
+      let categoryDocs;
+
+      if (categoriesToSearch.length > 0) {
+        categoryDocs = await Category.find({
+          name: {
+            $in: categoriesToSearch.map((cat) => new RegExp(`^${cat}$`, "i")),
+          },
+        });
+      } else {
+        categoryDocs = await Category.find({});
+      }
+
+      if (categoryDocs.length === 0) {
+        return res.status(404).json({
+          reply: `Sorry, we couldn’t find anything under ${
+            categoriesToSearch.join(", ") || "menu"
+          }.`,
+          items: [],
+          intent,
+          category,
+          tableId,
+        });
+      }
+
+      const categoryIds = categoryDocs.map((doc) => doc._id);
+
+      const items = await MenuItem.find({
+        category: { $in: categoryIds },
+      }).populate("category");
+
+      return res.json({
+        reply,
+        intent,
+        items,
+        tableId,
+      });
+    }
+      // ✅ Order Items Flow
+      const enrichedItems = [];
+
+      for (const item of items || []) {
+        const searchName = item.name.trim().toLowerCase();
+        const menuItem = await MenuItem.findOne({
+          $or: [
+            { "itemName.en": { $regex: searchName, $options: "i" } },
+            { "itemName.hi": { $regex: searchName, $options: "i" } },
+          ],
+        });
+
+        if (menuItem) {
+          enrichedItems.push({
+            id: menuItem._id,
+            name: menuItem.itemName.en || menuItem.itemName.hi,
+            quantity: item.quantity || 1,
+            price: menuItem.price,
+            specialInstructions: item.specialInstructions || "",
+          });
+        } else {
+          enrichedItems.push(item); // fallback
+        }
+      }
+
+      return res.json({
+        reply: reply,
+        intent,
+        items: enrichedItems,
+        tableId: tableId || "",
+        specialInstructions: specialInstructions || "",
       });
 
       if (filteredItems.length === 0) {
@@ -199,7 +281,6 @@ router.post("/ai-order", async (req, res) => {
         : isLookingForNonVeg
         ? "Here are today's non-vegetarian options:"
         : "Here are today's menu items:";
-
 
       if (filteredItems?.length === 0) {
         return res.status(404).json({

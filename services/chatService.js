@@ -43,7 +43,7 @@ export const handleChatQuery = async (
     .map((cat) => {
       const itemsInCat = menuItems
         .filter((item) => item.category?.name === cat.name)
-        .map((item) => `- ${item.itemName.en}`)
+        .map((item) => `- ${item.itemName.en} (₹${item.price})`)
         .join("\n");
 
       return `${cat.name}\n${itemsInCat}`;
@@ -85,7 +85,7 @@ export const handleChatQuery = async (
   // Detect excluded ingredients
   const exclusionRegex = new RegExp(
     [
-      "\\b(?:without|no|skip|avoid|exclude|hat(?:a)?\\s*do|nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|bina|binna)\\s+(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\b",
+      "\\b(?:without|no|skip|avoid|exclude|hat(?:a)?\\s*do|nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|bina|binna|बिना)\\s+(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\b",
       "\\b(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\s+(nahin\\s*chahiye|nahi\\s*ho|mat\\s*ho|avoid\\s*karo|hat(?:a)?\\s*do)\\b",
     ].join("|"),
     "gi"
@@ -93,7 +93,7 @@ export const handleChatQuery = async (
 
   const ingredientQueryRegex = new RegExp(
     [
-      "\\b(?:mein|me|contains|have|has|hai|kya\\s*hai|hai\\s*ya\\s*nahi)\\b\\s*(onion|garlic|lehsun|lahsun|pyaaz|pyaz)",
+      "\\b(?:mein|me|contains|have|has|hai|kya\\s*hai|hai\\s*ya\\s*nahi)\\b\\s*(onion|garlic|lehsun|lahsun|pyaaz|pyaz|बिना)",
       "(onion|garlic|lehsun|lahsun|pyaaz|pyaz)\\s*(hai|kya\\s*hai|hai\\s*ya\\s*nahi)",
     ].join("|"),
     "gi"
@@ -115,12 +115,10 @@ export const handleChatQuery = async (
   }
 
   // 📌 Language instruction for response
-const responseLanguageNote =
-  lang === "hi"
-    ? `⚠️ Reply in Hindi language (Devanagari), but wrap it in proper JSON containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON and "reply" should be in Hindi.`
-       : `⚠️ Reply in English. You MUST respond with a valid JSON object containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON.`;
-;
-
+  const responseLanguageNote =
+    lang === "hi"
+      ? `⚠️ Reply in Hindi language (Devanagari), but wrap it in proper JSON containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON and "reply" should be in Hindi.`
+      : `⚠️ Reply in English. You MUST respond with a valid JSON object containing the following fields: "intent", "items", "ingredient", and "reply". Wrap the full response in a JSON block exactly like shown below. Do not add anything outside the JSON.`;
   const systemPrompt = `
   You are a smart restaurant assistant for Bob's cafe. You help users with food menu queries and orders.
 
@@ -147,15 +145,20 @@ const responseLanguageNote =
   Your tasks:
   - Understand user intent.
   - If the user asks about a category (like South Indian, dessert, starters), filter the menu by that.
-  - If the user gives customizations like "less spicy", "without onion", "extra cheese", extract them as special instructions or customizations.
+  - Include special instructions like “less spicy”, “without onion”, “extra cheese” for each item **under item.specialInstructions** when mentioned.
   + For ingredient queries, use the dish name as item field and list the ingredients under ingredients as an array of strings.
   + Example: If user asks "What are the ingredients in Paneer Butter Masala?", respond as:
   - Do NOT assume the user wants to order just because they mention a dish name.
   - Only extract an item under "items" if the user clearly shows intent to order — e.g. uses phrases like “I want”, “get me”, “order”, “2 plates of”, “add”, “mujhe yeh chahiye”, “mujhe yeh order karna hai”, etc.
   - In case the user says "mujhe yeh order karna hai" or "Mujhe yah order kar do" or "get me this" **as a follow-up**, refer to the previously suggested dish (like "${lastSuggestedItems?.[0]}") and treat it as the intended order item.
   - If the user is just naming a dish or asking about it (e.g., "Masala Dosa" or "What is Masala Dosa"), do not treat it as an order. Instead, detect it as an ingredient_query or menu_browsing.
-  + "Bina lahsun pyaaz ke options dikhaiye" → intent: filter_by_ingredients, ingredient: "onion, garlic", mode: "exclude"
-  + "Tamatar wali dish dikhao" → intent: filter_by_ingredients, ingredient: "tomato", mode: "include"
++ "Bina lahsun pyaaz ke options dikhaiye" or "बिना प्याज़ की सब्ज़ी" → intent: filter_by_ingredients, ingredient: "onion", mode: "exclude"
+
++ Also, for exclusion intent, return items WITHOUT those ingredients, not with them.
++ Do not list all menu items — only return those that 
+
++ "Tamatar wali dish dikhao" → intent: filter_by_ingredients, ingredient: "tomato", mode: "include"
+  - If the user says things like "बिना प्याज", "no onion", "without garlic", "bina lahsun", etc., treat it as intent: "filter_by_ingredients"
 
   Important:
   - For \`order_item\` intent, return structured items with item name, quantity, and special instructions. DO NOT confirm the order directly — assume user will add it to cart manually, ut if you don't find the item then reply with please mention the dish name to order or ask mujhe menuu dikhao.
