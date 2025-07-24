@@ -76,7 +76,7 @@ export const ingredientKnowledge = {
     "tomatoes", "cream", "coriander", "butter", "kasuri methi", "salt"
   ],
   "Fish Fry": [
-    "fish fillet", "ginger garlic paste", "lemon juice",
+    "fish fillet", "ginger garlic paste", "lemon juice", "onion", "garlic",
     "red chili powder", "turmeric", "salt", "rice flour",
     "semolina (rava)", "mustard seeds", "oil", "curry leaves"
   ],
