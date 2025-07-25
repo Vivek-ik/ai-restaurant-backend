@@ -106,9 +106,43 @@ router.post("/ai-order", async (req, res) => {
     // ✅ Ingredient Query intent
 
     if (intent === "filter_by_ingredients" && ingredient) {
-     
+      // const ingredientsToMatch = ingredient
+      //   .split(",")
+      //   .map((i) => i.trim().toLowerCase());
+
+      // const allMenuItems = await MenuItem.find().populate("category").lean();
+
+      // const filteredItems = allMenuItems.filter((item) => {
+      //   const itemName = item.itemName.en.trim().toLowerCase();
+
+      //   const matchedKey = Object.keys(ingredientKnowledge).find(
+      //     (key) => key.trim().toLowerCase() === itemName
+      //   );
+
+      //   const ingredients =
+      //     matchedKey && ingredientKnowledge[matchedKey]
+      //       ? ingredientKnowledge[matchedKey].map((ing) => ing.toLowerCase())
+      //       : [];
+
+      //   const isNonVeg = item.tags?.some((tag) =>
+      //     tag.toLowerCase().includes("non-veg")
+      //   );
+
+      //   const hasMatch = ingredientsToMatch.some((ing) =>
+      //     ingredients.includes(ing)
+      //   );
+
+      //   if (mode === "exclude") {
+      //     return !hasMatch && !isNonVeg;
+      //   } else if (mode === "include") {
+      //     return hasMatch;
+      //   }
+
+      //   return true; // fallback
+      // });
+
       // ✅ Menu Browsing
-      if (intent === "filter_by_ingredients") {
+      if (intent === "menu_browsing") {
         const categoriesToSearch = category
           ? Array.isArray(category)
             ? category
@@ -140,7 +174,6 @@ router.post("/ai-order", async (req, res) => {
         }
 
         const categoryIds = categoryDocs.map((doc) => doc._id);
-        console.log('categoryIds', categoryIds);
 
         const items = await MenuItem.find({
           category: { $in: categoryIds },
@@ -155,12 +188,9 @@ router.post("/ai-order", async (req, res) => {
           tableId,
         });
       }
-
       // ✅ Order Items Flow
       const enrichedItems = [];
 
-      console.log("items999", items);
-      
       for (const item of items || []) {
         const searchName = item.name.trim().toLowerCase();
         const menuItem = await MenuItem.findOne({
@@ -183,8 +213,6 @@ router.post("/ai-order", async (req, res) => {
         }
       }
 
-      console.log("enrichedItems", enrichedItems);
-      
       return res.json({
         reply: reply,
         intent,
@@ -193,29 +221,29 @@ router.post("/ai-order", async (req, res) => {
         specialInstructions: specialInstructions || "",
       });
 
-      // if (filteredItems.length === 0) {
-      //   return res.status(404).json({
-      //     reply: `Sorry, no dishes found ${
-      //       mode === "exclude" ? "without" : "with"
-      //     } ${ingredient}.`,
-      //     items: [],
-      //     intent,
-      //     ingredient,
-      //     mode,
-      //     tableId,
-      //   });
-      // }
+      if (filteredItems.length === 0) {
+        return res.status(404).json({
+          reply: `Sorry, no dishes found ${
+            mode === "exclude" ? "without" : "with"
+          } ${ingredient}.`,
+          items: [],
+          intent,
+          ingredient,
+          mode,
+          tableId,
+        });
+      }
 
-      // return res.json({
-      //   reply: `Here are dishes ${
-      //     mode === "exclude" ? "without" : "with"
-      //   } ${ingredient}: ${filteredItems.map((i) => i.itemName.en).join(", ")}`,
-      //   intent,
-      //   ingredient,
-      //   mode,
-      //   tableId,
-      //   items: filteredItems,
-      // });
+      return res.json({
+        reply: `Here are dishes ${
+          mode === "exclude" ? "without" : "with"
+        } ${ingredient}: ${filteredItems.map((i) => i.itemName.en).join(", ")}`,
+        intent,
+        ingredient,
+        mode,
+        tableId,
+        items: filteredItems,
+      });
     }
 
     // menu browsing and veg non veg

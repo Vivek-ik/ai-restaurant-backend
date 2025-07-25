@@ -13,15 +13,14 @@ const MenuItemSchema = new mongoose.Schema(
       required: true,
     },
     tags: [String],
-  description: {
-  en: { type: String, required: true },
-  hi: { type: String }
-}
-,
+    description: {
+      en: { type: String, required: true },
+      hi: { type: String },
+    },
     image: String,
     available: Boolean,
     customizableOptions: [String],
-    ingredients: [String],  
+    ingredients: [String],
     allergens: [String],
   },
   { timestamps: true }
