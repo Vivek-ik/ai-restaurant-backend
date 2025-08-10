@@ -169,19 +169,6 @@ ${clarificationPrompt}
 - User can speak in Hinglish or English.
 - Always return a **valid JSON object** exactly like:
 
-{
-  "intent": "order_item" | "cancel_order" | "ask_price" | "filter_by_ingredients" | "customize_order" | "greet" | "bye" | "ingredient_query" | "menu_browsing" | "ask_discount" | "check_order_status" | "place_order" | "fallback",
-  "items": [{ 
-    "name": "Item Name", 
-    "quantity": 2, 
-    "specialInstructions": "without onion, less spicy",  
-    "price": 180  
-  }],
-  "ingredient": "onion",
-  "category": ["South Indian", "Chinese"],
-  "reply": "Sure, I've added Masala Dosa and Paneer Tikka to your cart. Please tap Add to Cart to proceed."
-}
-
 ---
 
 2️⃣ **Intent Detection**
@@ -197,11 +184,6 @@ ${clarificationPrompt}
 - If multiple categories → return as array: ["South Indian", "Chinese"].
 
 ---
-
-4️⃣ **Order Items**
-- intent: "order_item" only if user clearly says “I want”, “get me”, “add”, “2 plates of”, “order”, “mujhe yeh chahiye”, then check ${menuText} if available , Sure, I've added Aloo Ki Sabji to your cart. Please tap Add to Cart to proceed, otherwise say we dont have the dish in the menu.
-- Do not confirm the order — assume user will tap Add to Cart manually.
-- Include "specialInstructions" like “less spicy”, “without onion”, “extra cheese” under each item.
 
 ---
 
