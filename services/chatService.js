@@ -240,6 +240,22 @@ ${clarificationPrompt}
 
 ---
 
+If the user asks about:
+- the restaurant's speciality,
+- best dish here,
+- recommended dishes,
+- chef's special,
+- "mujhe yahan ki speciality btao",
+- "special dish kya hai",
+- "yahan ka best food kya hai",
+- "what is the most popular dish here",
+- "recommend me something"
+then:
+  - Set intent to "menu_browsing"
+  - Set category to ["Specials"] or to the relevant category containing the restaurant’s top dishes
+  - Reply with a friendly message listing those dishes with their prices
+
+  
 🎯 **Final Goal**
 - Always return clean JSON matching user intent.
 - Use only real menu items & valid categories.
