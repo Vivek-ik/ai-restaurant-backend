@@ -1,16 +1,190 @@
 // routes/aiOrderRoute.js
 import express from "express";
-import {
-  handleChatQuery,
-  detectIntentAndEntities,
-} from "../services/chatService.js";
+import { handleChatQuery } from "../services/chatService.js";
 import Order from "../models/Order.js";
 import MenuItem from "../models/MenuItem.js";
 import Category from "../models/Category.js";
-import { ingredientKnowledge } from "../constants.js";
 
 const router = express.Router();
 
+/* ───────────────
+   🔹 Helper Functions
+   ─────────────── */
+const cleanMessage = (message) =>
+  message
+    .replace(/:[^:\s]*(?:::[^:\s]*)*:/g, "")
+    .trim()
+    .toLowerCase();
+
+const findMenuItem = (allItems, searchName) =>
+  allItems.find((menuItem) => {
+    const en = menuItem.itemName?.en?.trim().toLowerCase();
+    const hi = menuItem.itemName?.hi?.trim().toLowerCase();
+    return (
+      en === searchName ||
+      hi === searchName ||
+      en?.includes(searchName) ||
+      hi?.includes(searchName)
+    );
+  });
+
+const enrichItemsFromMenu = async (items) => {
+  const allMenuItems = await MenuItem.find().populate("category").lean();
+  return items.map((item) => {
+    const searchName = item.name?.trim().toLowerCase();
+    const matched = findMenuItem(allMenuItems, searchName);
+    return matched
+      ? {
+          id: matched._id,
+          name: matched.itemName,
+          quantity: item.quantity || 1,
+          price: matched.price,
+          specialInstructions: item.specialInstructions || "",
+        }
+      : item;
+  });
+};
+
+/* ───────────────
+   🔹 Intent Handlers
+   ─────────────── */
+
+// 1. Jain Filter
+const handleJainFilter = async (lang) => {
+  const allMenuItems = await MenuItem.find().populate("category").lean();
+  const excludedIngredients = [
+    "onion",
+    "garlic",
+    "pyaz",
+    "lasun",
+    "lasoon",
+    "pyaaz",
+  ];
+
+  const jainItems = allMenuItems.filter((item) => {
+    const isJain =
+      Array.isArray(item.jainOption) &&
+      item.jainOption.some((opt) => opt.toLowerCase() === "jain");
+    const isVeg = item.vegNonVeg
+      ? item.vegNonVeg.toLowerCase() === "veg"
+      : true;
+    const hasExcluded =
+      Array.isArray(item.ingredients) &&
+      item.ingredients.some((ing) =>
+        excludedIngredients.includes(ing.trim().toLowerCase())
+      );
+    return isJain && isVeg && !hasExcluded;
+  });
+
+  return {
+    intent: "filter_by_jain",
+    items: jainItems.map((item) => ({
+      name: item.itemName.en,
+      price: item.price,
+      category: item.category?.name?.en || "",
+    })),
+    reply:
+      lang === "hi"
+        ? "यहाँ आपके लिए जैन-फ्रेंडली डिशेस हैं:"
+        : "Here are the Jain-friendly dishes:",
+  };
+};
+
+// 2. Order Item
+const handleOrderItem = async (items, reply, tableId, specialInstructions) => {
+  const enrichedItems = await enrichItemsFromMenu(items || []);
+  return {
+    reply: reply || "Please mention the name of the dish to order.",
+    intent: "order_item",
+    items: enrichedItems,
+    tableId: tableId || "",
+    specialInstructions: specialInstructions || "",
+  };
+};
+
+// 3. Filter by Ingredients
+const handleIngredientFilter = async (
+  items,
+  reply,
+  intent,
+  tableId,
+  specialInstructions
+) => {
+  const enrichedItems = await enrichItemsFromMenu(items || []);
+  return {
+    reply,
+    intent,
+    items: enrichedItems,
+    tableId: tableId || "",
+    specialInstructions: specialInstructions || "",
+  };
+};
+
+// 4. Veg/Non-Veg Filter
+const handleVegNonVegFilter = async (isVeg) => {
+  const allMenuItems = await MenuItem.find().populate("category").lean();
+  const filteredItems = allMenuItems.filter((item) => {
+    const tags = item.tags?.map((t) => t.toLowerCase()) || [];
+    return isVeg ? !tags.includes("non-veg") : tags.includes("non-veg");
+  });
+
+  if (filteredItems.length === 0) {
+    return {
+      reply: `Sorry, no ${
+        isVeg ? "vegetarian" : "non-vegetarian"
+      } dishes found.`,
+      items: [],
+    };
+  }
+
+  return {
+    reply: `Here are today's ${
+      isVeg ? "vegetarian" : "non-vegetarian"
+    } options: ${filteredItems.map((i) => i.itemName.en).join(", ")}`,
+    items: filteredItems,
+  };
+};
+
+// 5. Menu Browsing by Category
+const handleMenuBrowsing = async (category, reply, intent, tableId) => {
+  const categoriesToSearch = category
+    ? Array.isArray(category)
+      ? category
+      : [category]
+    : [];
+
+  const categoryDocs =
+    categoriesToSearch.length > 0
+      ? await Category.find({
+          name: {
+            $in: categoriesToSearch.map((cat) => new RegExp(`^${cat}$`, "i")),
+          },
+        })
+      : await Category.find({});
+
+  if (categoryDocs.length === 0) {
+    return {
+      reply: `Sorry, we couldn’t find anything under ${
+        categoriesToSearch.join(", ") || "menu"
+      }.`,
+      items: [],
+      intent,
+      category,
+      tableId,
+    };
+  }
+
+  const categoryIds = categoryDocs.map((doc) => doc._id);
+  const items = await MenuItem.find({
+    category: { $in: categoryIds },
+  }).populate("category");
+
+  return { reply, intent, items, tableId };
+};
+
+/* ───────────────
+   🔹 Main Route
+   ─────────────── */
 router.post("/ai-order", async (req, res) => {
   const {
     message,
@@ -19,16 +193,9 @@ router.post("/ai-order", async (req, res) => {
     previousMessages,
     suggestedItems,
   } = req.body;
-  console.log("➡️ Received request:", {
-    message,
-    lang,
-    tableId,
-    previousMessages,
-  });
 
-  if (!message) {
+  if (!message)
     return res.status(400).json({ message: "Message is required." });
-  }
 
   try {
     const chatResult = await handleChatQuery(
@@ -47,344 +214,110 @@ router.post("/ai-order", async (req, res) => {
       mode,
     } = chatResult;
 
-    console.log(
-      "chatResult",
-      intent,
-      items,
-      ingredient,
-      category,
-      reply,
-      specialInstructions,
-      mode
-    );
+    const cleanedLowerMessage = cleanMessage(message);
 
-    // ✅ Order Item Intent
-    if (intent === "order_item") {
-      const allMenuItems = await MenuItem.find().populate("category").lean();
-      const enrichedItems = [];
-
-      for (const item of items || []) {
-        console.log("item2222", item);
-
-        const searchName = item.name?.trim().toLowerCase();
-
-        const matchedMenuItem = allMenuItems.find((menuItem) => {
-          const enName = menuItem.itemName?.en?.trim().toLowerCase();
-          const hiName = menuItem.itemName?.hi?.trim().toLowerCase();
-          return (
-            enName === searchName ||
-            hiName === searchName ||
-            enName.includes(searchName) || // fuzzy match fallback
-            hiName?.includes(searchName)
-          );
-        });
-
-        if (matchedMenuItem) {
-          enrichedItems.push({
-            id: matchedMenuItem._id,
-            name: matchedMenuItem.itemName,
-            quantity: item.quantity || 1,
-            price: matchedMenuItem.price,
-            specialInstructions: item.specialInstructions || "",
-          });
-        } else {
-          enrichedItems.push(item); // fallback if no match
-        }
-      }
-
-      console.log("Enriched Items:", specialInstructions);
-
-      return res.json({
-        reply: reply || "Please mention the name of the dish to order.",
-        intent,
-        items: enrichedItems,
-        tableId: tableId || "",
-        specialInstructions: specialInstructions || "",
-      });
+    // Handle each intent
+    if (intent === "filter_by_jain") {
+      return res.json(await handleJainFilter(lang));
     }
 
-    // ✅ Ingredient Query intent
+    if (intent === "order_item") {
+      return res.json(
+        await handleOrderItem(items, reply, tableId, specialInstructions)
+      );
+    }
 
     if (intent === "filter_by_ingredients" && ingredient) {
-      // const ingredientsToMatch = ingredient
-      //   .split(",")
-      //   .map((i) => i.trim().toLowerCase());
-
-      // const allMenuItems = await MenuItem.find().populate("category").lean();
-
-      // const filteredItems = allMenuItems.filter((item) => {
-      //   const itemName = item.itemName.en.trim().toLowerCase();
-
-      //   const matchedKey = Object.keys(ingredientKnowledge).find(
-      //     (key) => key.trim().toLowerCase() === itemName
-      //   );
-
-      //   const ingredients =
-      //     matchedKey && ingredientKnowledge[matchedKey]
-      //       ? ingredientKnowledge[matchedKey].map((ing) => ing.toLowerCase())
-      //       : [];
-
-      //   const isNonVeg = item.tags?.some((tag) =>
-      //     tag.toLowerCase().includes("non-veg")
-      //   );
-
-      //   const hasMatch = ingredientsToMatch.some((ing) =>
-      //     ingredients.includes(ing)
-      //   );
-
-      //   if (mode === "exclude") {
-      //     return !hasMatch && !isNonVeg;
-      //   } else if (mode === "include") {
-      //     return hasMatch;
-      //   }
-
-      //   return true; // fallback
-      // });
-
-      // ✅ Menu Browsing
-      if (intent === "menu_browsing") {
-        const categoriesToSearch = category
-          ? Array.isArray(category)
-            ? category
-            : [category]
-          : [];
-
-        let categoryDocs;
-
-        if (categoriesToSearch.length > 0) {
-          categoryDocs = await Category.find({
-            name: {
-              $in: categoriesToSearch.map((cat) => new RegExp(`^${cat}$`, "i")),
-            },
-          });
-        } else {
-          categoryDocs = await Category.find({});
-        }
-
-        if (categoryDocs.length === 0) {
-          return res.status(404).json({
-            reply: `Sorry, we couldn’t find anything under ${
-              categoriesToSearch.join(", ") || "menu"
-            }.`,
-            items: [],
-            intent,
-            category,
-            tableId,
-          });
-        }
-
-        const categoryIds = categoryDocs.map((doc) => doc._id);
-
-        const items = await MenuItem.find({
-          category: { $in: categoryIds },
-        }).populate("category");
-
-        console.log("items1111", items);
-        
-        return res.json({
+      return res.json(
+        await handleIngredientFilter(
+          items,
           reply,
           intent,
-          items,
           tableId,
-        });
-      }
-      // ✅ Order Items Flow
-      const enrichedItems = [];
-
-      for (const item of items || []) {
-        const searchName = item.name.trim().toLowerCase();
-        const menuItem = await MenuItem.findOne({
-          $or: [
-            { "itemName.en": { $regex: searchName, $options: "i" } },
-            { "itemName.hi": { $regex: searchName, $options: "i" } },
-          ],
-        });
-
-        if (menuItem) {
-          enrichedItems.push({
-            id: menuItem._id,
-            name: menuItem.itemName.en || menuItem.itemName.hi,
-            quantity: item.quantity || 1,
-            price: menuItem.price,
-            specialInstructions: item.specialInstructions || "",
-          });
-        } else {
-          enrichedItems.push(item); // fallback
-        }
-      }
-
-      return res.json({
-        reply: reply,
-        intent,
-        items: enrichedItems,
-        tableId: tableId || "",
-        specialInstructions: specialInstructions || "",
-      });
-
-      if (filteredItems.length === 0) {
-        return res.status(404).json({
-          reply: `Sorry, no dishes found ${
-            mode === "exclude" ? "without" : "with"
-          } ${ingredient}.`,
-          items: [],
-          intent,
-          ingredient,
-          mode,
-          tableId,
-        });
-      }
-
-      return res.json({
-        reply: `Here are dishes ${
-          mode === "exclude" ? "without" : "with"
-        } ${ingredient}: ${filteredItems.map((i) => i.itemName.en).join(", ")}`,
-        intent,
-        ingredient,
-        mode,
-        tableId,
-        items: filteredItems,
-      });
+          specialInstructions
+        )
+      );
     }
 
-    // menu browsing and veg non veg
-    const cleanedMessage = message
-      .replace(/:[^:\s]*(?:::[^:\s]*)*:/g, "")
-      .toLowerCase();
-
-    const cleanedLowerMessage = cleanedMessage.toLowerCase();
-
-    // ✅ Add Hindi and Hinglish patterns
-    const isLookingForVeg =
+    if (
       /(veg|vegetarian|वेज|शाकाहारी)/i.test(cleanedLowerMessage) &&
       !/(non[- ]?veg|non[- ]?vegetarian|नॉन[- ]?वेज|मांसाहारी)/i.test(
         cleanedLowerMessage
-      );
+      )
+    ) {
+      return res.json(await handleVegNonVegFilter(true));
+    }
 
-    const isLookingForNonVeg =
+    if (
       /(non[- ]?veg|non[- ]?vegetarian|नॉन[- ]?वेज|मांसाहारी)/i.test(
         cleanedLowerMessage
+      )
+    ) {
+      return res.json(await handleVegNonVegFilter(false));
+    }
+
+    if (intent === "menu_browsing") {
+      return res.json(
+        await handleMenuBrowsing(category, reply, intent, tableId)
       );
+    }
 
-    let filteredItems;
-
-    if (isLookingForVeg || isLookingForNonVeg) {
+    // Fallback handler
+    if (intent === "fallback") {
+      // Try matching category or items manually
       const allMenuItems = await MenuItem.find().populate("category").lean();
 
-      filteredItems = allMenuItems.filter((item) => {
-        const tags = item.tags?.map((t) => t.toLowerCase()) || [];
+      const matchedCategory =
+        (await Category.findOne({
+          "name.en": { $regex: message, $options: "i" },
+        })) ||
+        (await Category.findOne({
+          "name.hi": { $regex: message, $options: "i" },
+        }));
 
-        if (isLookingForVeg) return !tags.includes("non-veg");
-        if (isLookingForNonVeg) return tags.includes("non-veg");
-        return true;
-      });
+      if (matchedCategory) {
+        const categoryItems = allMenuItems.filter(
+          (item) =>
+            item.category?._id.toString() === matchedCategory._id.toString()
+        );
 
-      const replyText = isLookingForVeg
-        ? "Here are today's vegetarian options:"
-        : isLookingForNonVeg
-        ? "Here are today's non-vegetarian options:"
-        : "Here are today's menu items:";
-
-      if (filteredItems?.length === 0) {
-        return res.status(404).json({
-          reply: `Sorry, no ${
-            isLookingForVeg ? "vegetarian" : "non-vegetarian"
-          } dishes found.`,
-          items: [],
-          intent,
-          tableId,
-        });
+        if (categoryItems.length > 0) {
+          return res.json({
+            intent: "menu_browsing",
+            category: [matchedCategory.name.en || matchedCategory.name.hi],
+            reply:
+              lang === "hi"
+                ? `हमारी ${
+                    matchedCategory.name.hi || matchedCategory.name.en
+                  } की विशेषता:\n- ${categoryItems
+                    .map(
+                      (i) => `${i.itemName.hi || i.itemName.en} (₹${i.price})`
+                    )
+                    .join("\n- ")}`
+                : `Our ${
+                    matchedCategory.name.en
+                  } specials are:\n- ${categoryItems
+                    .map((i) => `${i.itemName.en} (₹${i.price})`)
+                    .join("\n- ")}`,
+            items: categoryItems,
+            tableId,
+            specialInstructions: "",
+          });
+        }
       }
 
+      // If no match found, standard friendly fallback
       return res.json({
-        reply: `${replyText} ${filteredItems
-          .map((i) => i.itemName.en)
-          .join(", ")}`,
-        intent,
+        intent: "fallback",
+        reply:
+          lang === "hi"
+            ? "माफ़ करें, मैं पूरी तरह समझ नहीं पाया। क्या आप मेन्यू से कुछ देखना चाहेंगे?"
+            : "Sorry, I didn’t quite get that. Would you like to check the menu?",
+        items: [],
         tableId,
-        items: filteredItems,
+        specialInstructions: "",
       });
     }
-
-    // ✅ Menu Browsing
-    if (intent === "menu_browsing") {
-      const categoriesToSearch = category
-        ? Array.isArray(category)
-          ? category
-          : [category]
-        : [];
-
-      let categoryDocs;
-
-      if (categoriesToSearch.length > 0) {
-        categoryDocs = await Category.find({
-          name: {
-            $in: categoriesToSearch.map((cat) => new RegExp(`^${cat}$`, "i")),
-          },
-        });
-      } else {
-        categoryDocs = await Category.find({});
-      }
-
-      if (categoryDocs.length === 0) {
-        return res.status(404).json({
-          reply: `Sorry, we couldn’t find anything under ${
-            categoriesToSearch.join(", ") || "menu"
-          }.`,
-          items: [],
-          intent,
-          category,
-          tableId,
-        });
-      }
-
-      const categoryIds = categoryDocs.map((doc) => doc._id);
-
-      const items = await MenuItem.find({
-        category: { $in: categoryIds },
-      }).populate("category");
-
-      console.log("items", items);
-      
-      return res.json({
-        reply,
-        intent,
-        items,
-        tableId,
-      });
-    }
-
-    // ✅ Order Items Flow
-    const enrichedItems = [];
-
-    for (const item of items || []) {
-      const searchName = item.name.trim().toLowerCase();
-      const menuItem = await MenuItem.findOne({
-        $or: [
-          { "itemName.en": { $regex: searchName, $options: "i" } },
-          { "itemName.hi": { $regex: searchName, $options: "i" } },
-        ],
-      });
-
-      if (menuItem) {
-        enrichedItems.push({
-          id: menuItem._id,
-          name: menuItem.itemName,
-          quantity: item.quantity || 1,
-          price: menuItem.price,
-          specialInstructions: item.specialInstructions || "",
-        });
-      } else {
-        enrichedItems.push(item); // fallback
-      }
-    }
-
-    return res.json({
-      reply: reply,
-      intent,
-      items: enrichedItems,
-      tableId: tableId || "",
-      specialInstructions: specialInstructions || "",
-    });
   } catch (error) {
     console.error("🔥 AI Order Error:", error);
     return res.status(500).json({ message: "Internal Server Error" });

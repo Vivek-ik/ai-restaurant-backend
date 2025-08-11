@@ -32,6 +32,7 @@ export const processChat = async (req, res) => {
 export const createOrder = async (req, res) => {
   try {
     const { tableNumber, items } = req.body;
+console.log("tableNumber", tableNumber);
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: "Cart is empty" });
