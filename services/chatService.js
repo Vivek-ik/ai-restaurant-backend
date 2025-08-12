@@ -255,7 +255,7 @@ then:
   - Set category to ["Specials"] or to the relevant category containing the restaurant’s top dishes
   - Reply with a friendly message listing those dishes with their prices
 
-  
+
 🎯 **Final Goal**
 - Always return clean JSON matching user intent.
 - Use only real menu items & valid categories.
@@ -390,6 +390,19 @@ Your goal:
 - Only use \`customize_order\` if the user wants to modify items already in cart or placed.
 - If user shows order intent ("I want 2 dosa", "Add paneer tikka"), it’s \`order_item\`.
 - "filter_by_ingredients" – user wants to browse dishes that do NOT include specific ingredients (e.g., onion, garlic, Jain food)
+
+
+- If the user mentions "bina pyaaz", "bina pyaz", "without onion", "no onion", "without garlic", "no garlic", "Jain food", "Jain menu", "Jain options", "jain dishes", "satvik food", treat it as:
+  intent: "filter_by_ingredients"
+  excludedIngredients: ["onion", "garlic"]
+
+- If the user is asking to see dishes available or browsing categories (e.g., "main course me kya hai", "show menu"), it's:
+  intent: "menu_browsing"
+
+- Only use "customize_order" if the user is modifying an existing order/cart.
+
+- If the user expresses a direct order intent ("I want 2 dosa", "Add paneer tikka"), it's:
+  intent: "order_item"
 
 
 Return this JSON:
