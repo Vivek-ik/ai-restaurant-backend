@@ -32,6 +32,8 @@ const MenuSchema = new mongoose.Schema(
 
     dietaryNotes: [{ type: String }], // e.g., ['High protein']
     calories: { type: Number },
+
+    embedding: { type: [Number], index: "2dsphere" }, // store embedding
   },
   { timestamps: true }
 );

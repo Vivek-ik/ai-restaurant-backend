@@ -27,7 +27,7 @@ const findMenuItem = (allItems, searchName) =>
 
 const enrichItemsFromMenu = async (items) => {
   const allMenuItems = await MenuItem.find().populate("category").lean();
-  return items.map((item) => {
+  return items?.map((item) => {
     const searchName = item.name?.trim().toLowerCase();
     const matched = findMenuItem(allMenuItems, searchName);
     return matched
@@ -86,7 +86,15 @@ const handleOrderItem = async (items, reply, tableId, specialInstructions) => {
 };
 
 // 3. Filter by Ingredients
-const handleIngredientFilter = async (items, reply, intent, tableId, specialInstructions) => {
+const handleIngredientFilter = async (
+  items,
+  ingredients,
+  mode,
+  reply,
+  intent,
+  tableId,
+  specialInstructions
+) => {
   const enrichedItems = await enrichItemsFromMenu(items || []);
   return {
     reply,
@@ -134,7 +142,7 @@ const handleMenuBrowsing = async (category, reply, intent, tableId) => {
 
   if (categoryDocs.length === 0) {
     return {
-      reply: `Sorry, we couldn’t find anything under ${categoriesToSearch.join(", ") || "menu"}.`,
+      reply: reply,
       items: [],
       intent,
       category,
@@ -160,6 +168,8 @@ router.post("/ai-order", async (req, res) => {
     const chatResult = await handleChatQuery(message, lang, previousMessages, suggestedItems);
     const { intent, items, ingredient, category, reply, specialInstructions, mode } = chatResult;
 
+    console.log("chatResult", chatResult);
+    
     const cleanedLowerMessage = cleanMessage(message);
 
     // Handle each intent
@@ -172,7 +182,17 @@ router.post("/ai-order", async (req, res) => {
     }
 
     if (intent === "filter_by_ingredients" && ingredient) {
-      return res.json(await handleIngredientFilter(items, reply, intent, tableId, specialInstructions));
+      return res.json(
+        await handleIngredientFilter(
+          items,
+          ingredient,
+          mode,
+          reply,
+          intent,
+          tableId,
+          specialInstructions
+        )
+      );
     }
 
     if (/(veg|vegetarian|वेज|शाकाहारी)/i.test(cleanedLowerMessage) &&

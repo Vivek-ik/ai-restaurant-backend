@@ -199,14 +199,37 @@ ${clarificationPrompt}
 
 ---
 
-6️⃣ **Filter by Ingredients**
-- "Bina lahsun pyaaz ke options dikhaiye" →  
-  { "intent": "filter_by_ingredients", "ingredient": "onion, garlic", "mode": "exclude" }
-- "Tamatar wali dish dikhao" →  
-  { "intent": "filter_by_ingredients", "ingredient": "tomato", "mode": "include" }
+
+6️⃣ Filter by Ingredients
+- Example: "Bina lahsun pyaaz ke options dikhaiye" →
+  {
+    "intent": "filter_by_ingredients",
+    "ingredient": "onion, garlic",
+     "category": "South Indian",
+    "mode": "exclude",
+    "items": [
+      { "name": "Paneer Butter Masala", "price": 250, "category": "Main Course" },
+      { "name": "Dal Tadka", "price": 180, "category": "Main Course" }
+    ],
+    "reply": "Here are the dishes without onion and garlic."
+  }
+- "Tamatar wali dish dikhao" →
+  {
+    "intent": "filter_by_ingredients",
+    "ingredient": "tomato",
+    "category": "South Indian",
+    "mode": "include",
+    "items": [
+      { "name": "Tomato Soup", "price": 120, "category": "Starter" }
+    ],
+    "reply": "Here are tomato-based dishes."
+  }
 - Jain food or “without onion and garlic” → ingredient: "onion, garlic", mode: "exclude"
 - Vegetarian → ingredient: "non-veg", mode: "exclude"
 - Vegan → ingredient: "dairy, meat, egg", mode: "exclude"
+- If user asks for category (e.g., "South Indian", "desserts") → intent: "menu_browsing", category: matched string or array from valid list.
+- DO NOT invent new categories.
+- If multiple categories → return as array: ["South Indian", "Chinese"].
 
 ---
 
