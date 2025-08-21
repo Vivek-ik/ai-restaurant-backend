@@ -105,20 +105,84 @@ const handleOrderItem = async (items, reply, tableId, specialInstructions) => {
 // 3. Filter by Ingredients
 const handleIngredientFilter = async (
   items,
+  ingredient,
+  mode,
   reply,
   intent,
   tableId,
   specialInstructions
 ) => {
-  const enrichedItems = await enrichItemsFromMenu(items || []);
-  return {
-    reply,
-    intent,
-    items: enrichedItems,
-    tableId: tableId || "",
-    specialInstructions: specialInstructions || "",
-  };
+  try {
+    console.log("ingredient123", ingredient);
+    
+    // extract ingredients + mode from rawReply (pass it in or store in session)
+    const ingredientList = (items?.length ? items : [])
+      .map((i) => i.toLowerCase().trim())
+      .filter(Boolean);
+
+    // Build query dynamically
+    let query = {};
+    if (intent === "filter_by_ingredients" && ingredient.length > 0) {
+      query =
+        mode === "exclude"
+          ? { ingredients: { $nin: ingredient } }
+          : { ingredients: { $all: ingredient } };
+    }
+
+    // Fetch menu items
+    const dbItems = await MenuItem.find(query)
+      .populate("category", "name")
+      .select("itemName price category ingredients")
+      .lean();
+
+    // Convert DB items to FE-ready shape
+    const enrichedItems = dbItems.map((item) => ({
+      name: item.itemName?.en || "",
+      price: item.price || 0,
+      category: item.category?.name || "",
+      ingredients: item.ingredients || [],
+    }));
+
+    // If no dishes match
+    if (enrichedItems.length === 0) {
+      return {
+        reply: `Sorry, we don’t have any dishes without ${ingredient.join(
+          " and "
+        )}.`,
+        intent,
+        items: [],
+        tableId: tableId || "",
+        specialInstructions: specialInstructions || "",
+      };
+    }
+
+    // Natural reply text
+    const responseText = `Here are some dishes without ${ingredientList.join(
+      " and "
+    )}: ${enrichedItems
+      .map((i) => `${i.name} (₹${i.price})`)
+      .slice(0, 5)
+      .join(", ")}.`;
+
+    return {
+      reply: responseText,
+      intent,
+      items: enrichedItems,
+      tableId: tableId || "",
+      specialInstructions: specialInstructions || "",
+    };
+  } catch (err) {
+    console.error("handleIngredientFilter error:", err);
+    return {
+      reply: "Something went wrong while filtering dishes.",
+      intent,
+      items: [],
+      tableId: tableId || "",
+      specialInstructions: specialInstructions || "",
+    };
+  }
 };
+
 
 // 4. Veg/Non-Veg Filter
 const handleVegNonVegFilter = async (isVeg) => {
@@ -231,12 +295,18 @@ router.post("/ai-order", async (req, res) => {
       return res.json(
         await handleIngredientFilter(
           items,
+          ingredient,
+          mode,
           reply,
           intent,
           tableId,
           specialInstructions
         )
       );
+    }
+
+    if (intent === "greeting") {
+      return res.json({items, reply, intent});
     }
 
     if (
