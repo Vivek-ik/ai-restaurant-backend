@@ -184,7 +184,7 @@ ${clarificationPrompt}
 3️⃣ **Menu Browsing**
 - If user asks for category (e.g., "South Indian", "desserts")  
   → intent: "menu_browsing", category: matched string or array from valid list.
-- DO NOT invent new categories.
+- DO NOT invent new categories or dishes.
 - If multiple categories → return as array: ["South Indian", "Chinese"]
 
 4️⃣ **Ingredient Queries**
@@ -209,10 +209,11 @@ ${clarificationPrompt}
 
 6️⃣ **Special Keyword-based Filters**
 - **Spicy dishes** ("masaledar khana", "spicy sabji") → ingredient: "spicy", mode: "include"
-- **Mild dishes** ("simple khana", "कम मसालेदार") → ingredient: "mild", mode: "include"
+- **Mild dishes** ("simple khana", "कम मसालेदार", "medium spicy) → ingredient: "mild", mode: "include"
 - **Gravy dishes** ("gravy wali sabji") → ingredient: "gravy", mode: "include"
 - **Dry dishes** ("sukhi sabji", "dry khana") → ingredient: "dry", mode: "include"
 - **Vegetable dishes** ("veg options dikhao") → intent: "menu_browsing", category: ["Main Course"]
+- give item names in the reply itself
 
 7️⃣ **Dish Availability / Ingredient-based Search**
 - If user asks "X ki sabji dikhao" → intent: "menu_browsing", ingredient: "X"

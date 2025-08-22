@@ -114,11 +114,20 @@ const handleIngredientFilter = async (
 ) => {
   try {
     console.log("ingredient123", ingredient);
-    
+
     // extract ingredients + mode from rawReply (pass it in or store in session)
+    const ingredientArray = Array.isArray(ingredient)
+      ? ingredient.map((i) => i.toLowerCase().trim())
+      : [ingredient.toLowerCase().trim()];
+
+    // extract ingredients + mode from rawReply
     const ingredientList = (items?.length ? items : [])
       .map((i) => i.toLowerCase().trim())
       .filter(Boolean);
+
+      
+    console.log("ingredientListingredientList", ingredientList);
+    console.log("ingredientArray", ingredientArray);
 
     // Build query dynamically
     let query = {};
@@ -135,7 +144,7 @@ const handleIngredientFilter = async (
       .select("itemName price category ingredients")
       .lean();
 
-    // Convert DB items to FE-ready shape
+    // // Convert DB items to FE-ready shape
     const enrichedItems = dbItems.map((item) => ({
       name: item.itemName?.en || "",
       price: item.price || 0,
@@ -144,20 +153,20 @@ const handleIngredientFilter = async (
     }));
 
     // If no dishes match
-    if (enrichedItems.length === 0) {
-      return {
-        reply: `Sorry, we don’t have any dishes without ${ingredient.join(
-          " and "
-        )}.`,
-        intent,
-        items: [],
-        tableId: tableId || "",
-        specialInstructions: specialInstructions || "",
-      };
-    }
+    // if (enrichedItems.length === 0) {
+    //   return {
+    //     reply: `Sorry, we don’t have any dishes without ${ingredientArray.join(
+    //       " and "
+    //     )}.`,
+    //     intent,
+    //     items: [],
+    //     tableId: tableId || "",
+    //     specialInstructions: specialInstructions || "",
+    //   };
+    // }
 
     // Natural reply text
-    const responseText = `Here are some dishes without ${ingredientList.join(
+    const responseText = `Here are some dishes without ${ingredientArray.join(
       " and "
     )}: ${enrichedItems
       .map((i) => `${i.name} (₹${i.price})`)
@@ -165,7 +174,7 @@ const handleIngredientFilter = async (
       .join(", ")}.`;
 
     return {
-      reply: responseText,
+      reply: reply,
       intent,
       items: enrichedItems,
       tableId: tableId || "",
@@ -182,7 +191,6 @@ const handleIngredientFilter = async (
     };
   }
 };
-
 
 // 4. Veg/Non-Veg Filter
 const handleVegNonVegFilter = async (isVeg) => {
@@ -306,7 +314,7 @@ router.post("/ai-order", async (req, res) => {
     }
 
     if (intent === "greeting") {
-      return res.json({items, reply, intent});
+      return res.json({ items, reply, intent });
     }
 
     if (
