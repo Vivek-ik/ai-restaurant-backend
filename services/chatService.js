@@ -48,7 +48,7 @@ export const handleChatQuery = async (
   // Get first sheet
   const sheetName = workbook.SheetNames[0];
   const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-  console.log("sheetData", sheetData);
+  // console.log("sheetData", sheetData);
 
   // Example structure
   const menuText = categories
@@ -190,7 +190,6 @@ ${clarificationPrompt}
 4️⃣ **Ingredient Queries**
 - If asking "What is in X?"  
   → intent: "ingredient_query"
-- Example:
   {
     "intent": "ingredient_query",
     "items": [{ "name": "Paneer Butter Masala", "ingredients": [...] }],
@@ -372,13 +371,13 @@ then:
   const rawReply = completion.choices[0].message.content;
   console.log("rawReply", rawReply);
 
-  console.log("LLM Chat Response:", rawReply);
+  console.log("LLM Chat Response:", rawReply.intent);
 
   // ✅ Add a try/catch with a proper check before parsing
   try {
     const jsonReply = JSON.parse(rawReply);
 
-    console.log("exclusions", exclusions);
+    console.log("exclusions", jsonReply.reply, );
 
     // Optional fix for ingredient_query intent fallback:
     if (exclusions.length > 0 && jsonReply.intent === "menu_browsing") {

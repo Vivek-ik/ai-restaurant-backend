@@ -113,7 +113,7 @@ const handleIngredientFilter = async (
   specialInstructions
 ) => {
   try {
-    console.log("ingredient123", ingredient);
+    // console.log("ingredient123", ingredient);
 
     // extract ingredients + mode from rawReply (pass it in or store in session)
     const ingredientArray = Array.isArray(ingredient)
@@ -121,13 +121,12 @@ const handleIngredientFilter = async (
       : [ingredient.toLowerCase().trim()];
 
     // extract ingredients + mode from rawReply
-    const ingredientList = (items?.length ? items : [])
-      .map((i) => i.toLowerCase().trim())
-      .filter(Boolean);
+    // const ingredientList = (items?.length ? items : [])
+    //   .map((i) => i.toLowerCase().trim())
+    //   .filter(Boolean);
 
-      
-    console.log("ingredientListingredientList", ingredientList);
-    console.log("ingredientArray", ingredientArray);
+    // console.log("ingredientListingredientList", ingredientList);
+    // console.log("ingredientArray", ingredientArray);
 
     // Build query dynamically
     let query = {};
@@ -285,6 +284,7 @@ router.post("/ai-order", async (req, res) => {
       specialInstructions,
       mode,
     } = chatResult;
+    console.log("chatResult", chatResult);
 
     const cleanedLowerMessage = cleanMessage(message);
 
@@ -299,7 +299,23 @@ router.post("/ai-order", async (req, res) => {
       );
     }
 
-    if (intent === "filter_by_ingredients" && ingredient) {
+    if (intent === "filter_by_ingredients") {
+      return res.json(
+        await handleIngredientFilter(
+          items,
+          ingredient,
+          mode,
+          reply,
+          intent,
+          tableId,
+          specialInstructions
+        )
+      );
+    }
+
+    console.log("intent", intent);
+
+    if (intent === "ingredient_query") {
       return res.json(
         await handleIngredientFilter(
           items,
